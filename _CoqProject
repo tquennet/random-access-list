@@ -1,3 +1,3 @@
 -R theories NumRep
-theories/Nat.v
-theories/List.v
+theories/numerical/unary/Nat.v
+theories/structure/unary/List.v
