@@ -32,40 +32,10 @@ Section List.
 		| _ :: t => t
 		end.
 	
-	Inductive is_append : List -> List -> List -> Prop :=
-	| is_append_R : forall (right : List), is_append [] right right
-	| is_append_S : forall (x : A) (left right sum : List),
-		is_append left right sum -> is_append (x :: left) right (x :: sum).
-	
-	(*
-		Meilleur définition de is_append?
-		
-		Fixpoint fold {B : Type} (f : B -> A -> B) (i : B) (l : List) :=
-		match l with
-		| Nil => i
-		| x :: t => fold f (f i x) t
-		end.
-		
-		Definition is_append_fold (left right sum : List) :
-			forall B : Type, forall (f : B -> A -> B) (i : B),
-			fold f (fold f i left) right = fold f i sum.
-	
-	*)
-	
 	Fixpoint append left right : List :=
 	match left with
 	| [] => right
 	| x :: tleft => x :: (append tleft right)
 	end.
-	
-	Theorem append_is_append : forall left right : List, is_append left right (append left right).
-	Proof.
-		intros left right.
-		induction left.
-		exact (is_append_R _).
-		simpl.
-		apply is_append_S.
-		assumption.
-	Qed.
 
 End List.

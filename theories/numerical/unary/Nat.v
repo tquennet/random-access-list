@@ -33,20 +33,16 @@ Module add_tail.
 		end.
 
 
-	Lemma add_sun_m_eq_add_n_sum : forall (n m : Nat), add (Su n) m = add n (Su m).
-	Proof.
-		reflexivity.
-	Qed.
-
 	Lemma add_su_n_m_eq_su_add : forall (n m : Nat), add (Su n) m = Su (add n m).
 	Proof.
 		intros n.
-		induction n.
-		reflexivity.
-		intros m.
-		rewrite add_sun_m_eq_add_n_sum.
-		rewrite (IHn (Su m)).
-		reflexivity.
+		{	induction n.
+		+	reflexivity.
+		+	intros m.
+			simpl in *.
+			rewrite (IHn (Su m)).
+			reflexivity.
+		}
 	Qed.
 		
 End add_tail.
@@ -58,7 +54,7 @@ Module add_stack.
 		| 0 => m
 		| Su n => Su (add n  m)
 		end.
-	
+
 	Lemma add_su_n_m_eq_su_add : forall (n m : Nat), add (Su n) m = Su (add n m).
 	Proof.
 		reflexivity.
@@ -70,11 +66,12 @@ End add_stack.
 Theorem add_tail_eq_stack : forall (n m : Nat), add_tail.add n m = add_stack.add n m.
 Proof.
 	intros n m.
-	induction n.
-	reflexivity.
-	rewrite (add_tail.add_su_n_m_eq_su_add n m); rewrite (add_stack.add_su_n_m_eq_su_add).
-	rewrite IHn.
-	reflexivity.
+	{	induction n.
+	+	reflexivity.
+	+	rewrite (add_tail.add_su_n_m_eq_su_add n m).
+		rewrite IHn.
+		reflexivity.
+	}
 Qed.
 
 Include add_tail.
