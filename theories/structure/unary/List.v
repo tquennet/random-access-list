@@ -10,6 +10,7 @@ Inductive List (A : Type) : Type :=
 	
 Notation "[]" := (Nil _) : unary_list_scope.
 Notation "h :: t" := (Cons _ h t) : unary_list_scope.
+Notation "[ a ]" := (a :: Nil _) : unary_nat_scope.
 	
 Fixpoint length {A : Type} (l : List A) : Nat :=
 	match l with
@@ -18,6 +19,7 @@ Fixpoint length {A : Type} (l : List A) : Nat :=
 	end.
 
 Reserved Notation "# l" (at level 25, no associativity).
+Reserved Notation "l @ r" (at level 60, right associativity).
 Notation "# l" := (length l) : unary_list_scope.
 
 Section List.
@@ -38,4 +40,12 @@ Section List.
 	| x :: tleft => x :: (append tleft right)
 	end.
 
+	Fixpoint rev_append left right : List :=
+	match left with
+	| [] => right
+	| x :: t => rev_append t (x :: right)
+	end.
+
 End List.
+
+Notation "l @ r" := (append l r) : unary_list_scope.

@@ -58,21 +58,40 @@ Section Nat_List.
 			rewrite H; reflexivity.
 	Qed.
 
-	Theorem length_sum_append : forall (l r : List) (n m : Nat),
-		n = length l -> m = length r -> n + m = length (append l r).
+	Theorem length_sum_append_stack : forall (l r : List) (n m : Nat),
+		n = length l -> m = length r -> n +s m = length (l @ r).
 	Proof.
 		intros l r.
 		{	induction l; intros n m Hll Hlr.
 		+	simpl; rewrite Hlr, Hll.
 			reflexivity.
 		+	simpl in *.
-			rewrite Hll, add_su_n_m_eq_su_add.
-			f_equal.
+			rewrite Hll.
 			apply (f_equal pre) in Hll; rewrite pre_su_n_eq_n in Hll.
 			specialize (IHl (pre n) m).
 			pose (H := IHl Hll Hlr).
 			rewrite <- H, Hll.
 			reflexivity.
+		}
+	Qed.
+
+	Theorem length_sum_append_tail : forall (n m : Nat) (l r : List),
+		n = length l -> m = length r -> n +t m = length (rev_append l r).
+	Proof.
+		intros n.
+		{	induction n; intros m l r Hll Hlr.
+		+	symmetry in Hll; apply length_0 in Hll.
+			rewrite Hll; simpl.
+			exact Hlr.
+		+	destruct l; try discriminate.
+			simpl in *.
+			{	apply IHn.
+			+	inversion Hll.
+				reflexivity.
+			+	simpl.
+				f_equal.
+				exact Hlr.
+			}
 		}
 	Qed.
 

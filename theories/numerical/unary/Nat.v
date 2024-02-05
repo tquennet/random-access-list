@@ -55,15 +55,9 @@ Module add_stack.
 		| Su n => Su (add n  m)
 		end.
 
-	Lemma add_su_n_m_eq_su_add : forall (n m : Nat), add (Su n) m = Su (add n m).
-	Proof.
-		reflexivity.
-	Qed.
-
 End add_stack.
 
-
-Theorem add_tail_eq_stack : forall (n m : Nat), add_tail.add n m = add_stack.add n m.
+Lemma add_tail_eq_stack : forall (n m : Nat), add_tail.add n m = add_stack.add n m.
 Proof.
 	intros n m.
 	{	induction n.
@@ -74,6 +68,8 @@ Proof.
 	}
 Qed.
 
-Include add_tail.
+Reserved Notation "n '+t' m" (at level 50, left associativity).
+Reserved Notation "n '+s' m" (at level 50, left associativity).
 
-Notation "n + m" := (add n m) : unary_nat_scope.
+Notation "n '+t' m" := (add_tail.add n m) : unary_nat_scope.
+Notation "n '+s' m" := (add_stack.add n m) : unary_nat_scope.
