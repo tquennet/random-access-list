@@ -57,15 +57,11 @@ Section Nat_List.
 	Qed.
 
 	Theorem length_sum_append_tail : forall (l r : List),
-		(#l) +t (#r) = # (rev_append l r).
+		(#l) +t (#r) = # (append_tail l r).
 	Proof.
-		intros l.
-		{	induction l as [|x t H]; intro r.
-		+	reflexivity.
-		+	simpl.
-			rewrite <- H.
-			reflexivity.
-		}
+		intros l r.
+		rewrite <- append_eq_append_tail, add_tail_eq_stack.
+		exact (length_sum_append_stack l r).
 	Qed.
 
 End Nat_List.
