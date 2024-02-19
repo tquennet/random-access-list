@@ -26,72 +26,45 @@ Section Nat_List.
 		}
 	Qed.
 
-	Theorem length_cons_succ : forall (l : List) (n : Nat) (x : A),
-		n = length l <-> Su n = @length A (x :: l).
+	Theorem length_cons_succ : forall (l : List) (x : A),
+		Su (#l) = # (x :: l).
 	Proof.
-		{	split.
-		+	intro H; simpl.
-			rewrite H; reflexivity.
-		+	intro H; simpl in *.
-			inversion H; reflexivity.
-		}
+		intros l x.
+		reflexivity.
 	Qed.
 
-	Theorem length_tail_pre : forall (l : List) (n : Nat),
-		n = length l -> pre n = length (tail l).
+	Theorem length_tail_pre : forall (l : List),
+		pre (#l) = #(tail l).
 	Proof.
-		intros l n H.
-		{	destruct l; simpl in *; rewrite H.
+		intros l.
+		{	destruct l.
 		+	reflexivity.
-		+	rewrite pre_su_n_eq_n.
+		+	simpl.
 			reflexivity.
 		}
 	Qed.
 
-	Theorem tail_pre_length : forall (l : List) (n : Nat)
-		(CL : l <> []) (CN : n <> 0),
-		length (tail l) = pre n -> n = length l.
-	Proof.
-		intros l n CL CN H.
-		destruct l; destruct n; try contradiction.
-		+	simpl in *.
-			rewrite H; reflexivity.
-	Qed.
-
-	Theorem length_sum_append_stack : forall (l r : List) (n m : Nat),
-		n = length l -> m = length r -> n +s m = length (l @ r).
+	Theorem length_sum_append_stack : forall (l r : List),
+		(#l) +s (#r) = # (l @ r).
 	Proof.
 		intros l r.
-		{	induction l; intros n m Hll Hlr.
-		+	simpl; rewrite Hlr, Hll.
-			reflexivity.
+		{	induction l as [|x t H].
+		+	reflexivity.
 		+	simpl in *.
-			rewrite Hll.
-			apply (f_equal pre) in Hll; rewrite pre_su_n_eq_n in Hll.
-			specialize (IHl (pre n) m).
-			pose (H := IHl Hll Hlr).
-			rewrite <- H, Hll.
+			rewrite H.
 			reflexivity.
 		}
 	Qed.
 
-	Theorem length_sum_append_tail : forall (n m : Nat) (l r : List),
-		n = length l -> m = length r -> n +t m = length (rev_append l r).
+	Theorem length_sum_append_tail : forall (l r : List),
+		(#l) +t (#r) = # (rev_append l r).
 	Proof.
-		intros n.
-		{	induction n; intros m l r Hll Hlr.
-		+	symmetry in Hll; apply length_0 in Hll.
-			rewrite Hll; simpl.
-			exact Hlr.
-		+	destruct l; try discriminate.
-			simpl in *.
-			{	apply IHn.
-			+	inversion Hll.
-				reflexivity.
-			+	simpl.
-				f_equal.
-				exact Hlr.
-			}
+		intros l.
+		{	induction l as [|x t H]; intro r.
+		+	reflexivity.
+		+	simpl.
+			rewrite <- H.
+			reflexivity.
 		}
 	Qed.
 
