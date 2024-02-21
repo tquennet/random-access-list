@@ -29,8 +29,8 @@ Fixpoint inc n :=
 Fixpoint dec n :=
 	match n with
 	| [] => []
-	| 0 :: t => 0 :: --t
-	| 1 :: t => 1 :: t
+	| 0 :: t => 1 :: --t
+	| 1 :: t => 0 :: t
 	end where "-- n" := (dec n).
 
 Fixpoint add n m :=
