@@ -1,120 +1,112 @@
-Require Import Program Arith.
+Require Import Program Arith Lists.List.
+Require Import NumRep.numerical.binary.BinNat.
+Import ListNotations.
 
 Section CLBT.
 
-	Context {A : Type}.
+Context {A : Type}.
 
-	Inductive CLBT : nat -> Type :=
-	| Leaf : A -> CLBT 0
-	| Node : forall n : nat, CLBT n -> CLBT n -> CLBT (S n).
+Inductive CLBT : Type :=
+	| Leaf : A -> CLBT
+	| Node : CLBT -> CLBT -> CLBT.
 
-	(*Inductive CLBTree : Type :=
-	| Leaf : A -> CLBTree
-	| Node : CLBTree -> CLBTree -> CLBTree.
+Inductive valid_CLBT : nat -> CLBT -> Prop :=
+	| valid_Leaf : forall a : A, valid_CLBT 0 (Leaf a)
+	| valid_Node : forall {n : nat} (l r : CLBT),
+		valid_CLBT n l -> valid_CLBT n r ->
+		valid_CLBT (S n) (Node l r).
 
-	Inductive valid_CLBTree : nat -> CLBTree -> Prop : Type :=
-	| valid_Leaf : forall a : A, valid_CLBTree 0 (Leaf a)
-	| valid_Node : forall (n : nat) (l r : CLBTree),
-		valid_CLBTree n l -> valid_CLBTree n r ->
-		valid_CLBTree (S n) (Node l r).
+Inductive valid_option_CLBT : nat -> option CLBT -> Prop :=
+	| valid_CLBT_None : forall {n : nat}, valid_option_CLBT n None
+	| valid_CLBT_Some : forall {n : nat} (clbt : CLBT),
+		valid_CLBT n clbt -> valid_option_CLBT n (Some clbt).
 
-	Definition VCLBT n := {t : CLBTree | valid_CLBTree n t}.*)
+Definition singleton (a : A) : CLBT := Leaf a.
+Lemma singleton_valid : forall a : A, valid_CLBT 0 (singleton a).
+Proof.
+	intro a.
+	apply valid_Leaf.
+Qed.
 
-	Definition CLBT_size {n : nat} (t : CLBT n) := 2 ^ n.
+Definition CLBT_merge (l r : CLBT) : CLBT := Node l r.
+Lemma CLBT_merge_valid : forall {n : nat} (l r : CLBT),
+	valid_CLBT n l -> valid_CLBT n r -> valid_CLBT (S n) (CLBT_merge l r).
+Proof.
+	intros n l r Hl Hr.
+	apply valid_Node; assumption.
+Qed.
 
-	Program Definition singleton (a : A) : CLBT 0 := Leaf a.
-
-	Program Fixpoint CLBT_merge {n : nat} (l r : CLBT n) :
-		CLBT (S n) := Node n l r.
-
-	Fixpoint CLBT_head {n : nat} (l : CLBT n) : A :=
-	match l with
+Fixpoint CLBT_head (t : CLBT) : A :=
+	match t with
 	| Leaf a => a
-	| Node _ _ r => CLBT_head r
+	| Node _ r => CLBT_head r
 	end.
 
-	Definition CLBT_break {n : nat} (clbt : CLBT (S n))
-			: (CLBT n * CLBT n).
-		inversion clbt as [|m l r].
-		exact (l, r).
-	Defined.
+Definition CLBT_break (t : CLBT) : (CLBT * CLBT) :=
+	match t with
+	| Node l r => (l, r)
+	| _ => (t, t)
+	end.
 
-	Local Lemma n_sub_m_lt_m : forall m n, n < 2 * m -> n - m < m.
-	Proof.
-		intros m n H.
-		{	induction m as [| m HR].
-		+	apply Nat.nlt_0_r in H.
-			contradiction.
-		+	rewrite Nat.lt_succ_r.
-			rewrite Nat.le_sub_le_add_r.
-			rewrite <- Nat.lt_succ_r, <- Nat.add_succ_l.
-			{	assert (HD : 2 * S m = S m + S m).
-			+	unfold mult.
-				rewrite Nat.add_0_r.
-				reflexivity.
-			+	rewrite <- HD.
-				assumption.
+Lemma CLBT_break_fst_valid : forall {n : nat} (t : CLBT),
+	valid_CLBT (S n) t -> valid_CLBT n (fst (CLBT_break t)).
+Proof.
+	intros n t H.
+	inversion_clear H.
+	assumption.
+Qed.
+Lemma CLBT_break_snd_valid : forall {n : nat} (t : CLBT),
+	valid_CLBT (S n) t -> valid_CLBT n (snd (CLBT_break t)).
+Proof.
+	intros n t H.
+	inversion_clear H.
+	assumption.
+Qed.
+
+Fixpoint CLBT_lookup (t : CLBT) (n : list Bit) : A :=
+	match t with
+	| Leaf a => a
+	| Node l r =>
+		match n with
+		| [] => CLBT_lookup r []
+		| 0 :: tn => CLBT_lookup r tn
+		| 1 :: tn => CLBT_lookup l tn
+		end
+	end.
+
+Fixpoint CLBT_update (t : CLBT) (n : list Bit) (a : A) : CLBT :=
+	match t with
+	| Leaf a => Leaf a
+	| Node l r =>
+		match n with
+		| [] => Node l (CLBT_update r [] a)
+		| 0 :: tn => Node l (CLBT_update r tn a)
+		| 1 :: tn => Node r (CLBT_update l tn a)
+		end
+	end.
+
+Lemma CLBT_update_valid : forall (t : CLBT) (n : list Bit) (a : A),
+	valid_CLBT (length n) t -> valid_CLBT (length n) (CLBT_update t n a).
+Proof.
+	intro t.
+	{	induction t as [b | l HR1 r HR2]; intros n a H.
+	+	inversion_clear H.
+		apply valid_Leaf.
+	+	{	destruct n as [|bit t]; inversion_clear H.
+		+	{	destruct bit.
+			+	{	apply valid_Node.
+				+	assumption.
+				+	apply HR2.
+					assumption.
+				}
+			+	{	apply valid_Node.
+				+	assumption.
+				+	apply HR1.
+					assumption.
+				}
 			}
 		}
-	Qed.
-
-	Section CLBT_lookup.
-
-		Program Fixpoint CLBT_lookup (d : nat) (n : nat | n < 2 ^ d)
-			(clbt : CLBT d) {measure d} : A :=
-		match clbt with
-		| Leaf a => a
-		| Node m l r => let half := 2 ^ (pred d) in
-			match n <? half with
-			| true => CLBT_lookup m n l
-			| false => CLBT_lookup m (n - half) r
-			end
-		end.
-		Obligation 1.
-		Proof.
-			rename Heq_anonymous into Hlt.
-			simpl in Hlt.
-			apply eq_sym in Hlt.
-			rewrite Nat.ltb_lt in Hlt.
-			exact Hlt.
-		Qed.
-		Obligation 3.
-		Proof.
-			simpl.
-			apply n_sub_m_lt_m.
-			assumption.			
-		Qed.
-		
-
-	End CLBT_lookup.
-
-	Section CLBT_update.
-
-		Program Fixpoint CLBT_update (d : nat) (n : nat | n < 2 ^ d)
-			(clbt : CLBT d) (a : A) {measure d} : CLBT d :=
-		match clbt with
-		| Leaf _ => Leaf a
-		| Node m l r => let half := 2 ^ (pred d) in
-			match n <? half with
-			| true => Node m (CLBT_update m n l a) r
-			| false => Node m l (CLBT_update m (n - half) r a)
-			end
-		end.
-		Obligation 1.
-		Proof.
-			rename Heq_anonymous into Hlt.
-			simpl in Hlt.
-			apply eq_sym in Hlt.
-			rewrite Nat.ltb_lt in Hlt.
-			exact Hlt.
-		Qed.
-		Obligation 3.
-		Proof.
-			simpl.
-			apply n_sub_m_lt_m.
-			assumption.	
-		Qed.
-
-	End CLBT_update.
+	}
+Qed.
 
 End CLBT.
