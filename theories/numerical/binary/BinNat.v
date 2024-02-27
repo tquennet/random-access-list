@@ -38,32 +38,3 @@ Fixpoint add n m :=
 	| b :: tn, 0 :: tm => b :: (tn + tm)
 	| 1 :: tn, 1 :: tm => 0 :: inc (tn + tm)
 	end where "n + m" := (add n m).
-
-Local Definition bit_not b :=
-	match b with
-	| 0 => 1
-	| 1 => 0
-	end.
-
-Local Definition carry_of a b c :=
-	match a, b, c with
-	| 1, 1, _ | 1, _, 1 | _, 1, 1 => 1
-	| _, _, _ => 0
-	end.
-
-Local Definition sum_bit_of a b c :=
-	match a, b with
-	| 1, 1 | 0, 0 => c
-	| 1, 0 | 0, 1 => bit_not c
-	end.
-
-Fixpoint add_carry n m carry :=
-	match n, m with
-	| [], r | r, [] =>
-		match carry with
-		| 0 => r
-		| 1 => inc r
-		end
-	| a :: tn, b :: tm => sum_bit_of a b carry
-		:: (add_carry tn tm (carry_of a b carry))
-	end.

@@ -1,5 +1,5 @@
 Require Import Program Arith Lists.List.
-Require Import NumRep.structure.tree.clbt.
+Require Import NumRep.structure.tree.Clbt.
 Require Import NumRep.numerical.binary.BinNat.
 
 Import ListNotations.
@@ -77,6 +77,7 @@ Proof.
 		}
 	}
 Qed.
+
 
 
 Definition RAL_cons (a : A) (l : RAL) := RAL_cons_aux (singleton a) l.
@@ -263,15 +264,6 @@ with RAL_updateBorrow (l : RAL) (n : BinNat) (pos : list Bit) (a : A) : RAL :=
 	end.
 
 Definition RAL_update l n a := RAL_update_aux l n [] a.
-
-Lemma RAL_update_aux_valid_Nil : forall (n : BinNat) (pos : list Bit) (a : A),
-	valid_RAL (length pos) [] -> canonical_BinNat n ->
-	valid_RAL (length pos) (RAL_update_aux [] n pos a).
-Proof.
-	intros n pos a H0 H1.
-	inversion_clear H0.
-	apply valid_RAL_Nil.
-Qed.
 
 Lemma RAL_update_aux_valid : forall (l : RAL) (n : BinNat)
 		(pos : list Bit) (a : A),
