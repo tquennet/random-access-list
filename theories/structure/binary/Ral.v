@@ -323,17 +323,6 @@ with RAL_lookup_borrow (l : RAL) (n : BinNat) (pos : list Bit) : option A :=
 
 Definition RAL_lookup l n := RAL_lookup_aux l n [].
 
-Lemma RAL_lookup_cons_aux : forall (l : RAL) (clbt : CLBT) (n : BinNat)
-	(pos : list Bit) {d : nat},
-	valid_RAL d l -> valid_BinNat d n ->
-	RAL_lookup_aux l n pos = RAL_lookup_aux.
-
-Lemma RAL_lookup_cons : forall (l : RAL) (a : A) (n : BinNat),
-	valid_RAL 0 l -> valid_BinNat 0 n ->
-	RAL_lookup l n = RAL_lookup (RAL_cons a l) (inc n).
-Proof.
-Qed.
-
 End RAL_lookup.
 
 Section RAL_update.
