@@ -3,6 +3,7 @@ Require Import NumRep.structure.tree.Clbt.
 Require Import NumRep.numerical.binary.BinNat.
 
 Import ListNotations.
+Open Scope bin_nat_scope.
 
 Section RAL.
 
@@ -33,16 +34,51 @@ Definition is_empty (l : RAL) :=
 	| _ => false
 	end.
 
-Fixpoint size (l : RAL) :=
-	match l with
-	| [] => nil
-	| RAL_Zero :: t => 0 :: (size t)
-	| RAL_One _ :: t => 1 :: (size t)
-	end.
+Section RAL_size.
+
+	Fixpoint size (l : RAL) :=
+		match l with
+		| [] => nil
+		| RAL_Zero :: t => 0 :: (size t)
+		| RAL_One _ :: t => 1 :: (size t)
+		end.
+
+	Lemma RAL_size_valid : forall (l : RAL) {n : nat},
+		valid_RAL n l -> valid_BinNat n (size l).
+	Proof.
+		intro l.
+		{	induction l as [| bit t HR]; intros n H; inversion_clear H.
+		+	apply valid_BinNat_Nil.
+		+	apply valid_BinNat_Top.
+		+	apply valid_BinNat_Cons.
+			apply HR.
+			assumption.
+		+	apply valid_BinNat_Cons.
+			apply HR.
+			assumption.
+		}
+	Qed.
+
+
+	Lemma RAL_size_non_zero : forall (l : RAL) {n : nat},
+		valid_RAL (S n) l -> [] <? size l = true.
+	Proof.
+		intros l n H.
+		destruct l as [| bit t]; inversion_clear H; reflexivity.
+	Qed.
+
+	Lemma RAL_size_non_zero_borrow : forall (l : RAL) {n : nat},
+		valid_RAL (S n) l -> gt_dec_borrow (size l) [] = true.
+	Proof.
+		intros l n H.
+		destruct l as [|bit t]; inversion_clear H; reflexivity.
+	Qed.
+
+End RAL_size.
 
 Section RAL_cons.
 
-Let Fixpoint RAL_cons_aux (clbt : CLBT) (l : RAL) : RAL :=
+Local Fixpoint RAL_cons_aux (clbt : CLBT) (l : RAL) : RAL :=
 	match l with
 	| [] => [RAL_One clbt]
 	| RAL_Zero :: t => RAL_One clbt :: t
@@ -50,7 +86,7 @@ Let Fixpoint RAL_cons_aux (clbt : CLBT) (l : RAL) : RAL :=
 	end.
 
 Lemma RAL_cons_aux_valid : forall  (l : RAL) (clbt : CLBT) {n : nat},
-	valid_RAL n l ->valid_CLBT n clbt -> 
+	valid_RAL n l -> valid_CLBT n clbt -> 
 	valid_RAL n (RAL_cons_aux clbt l).
 Proof.
 	intros l.
@@ -102,7 +138,7 @@ end.
 
 Section RAL_tail.
 
-Let Fixpoint uncons (l : RAL) : option (CLBT) * RAL :=
+Local Fixpoint uncons (l : RAL) : option (CLBT) * RAL :=
 	match l with
 	| [] => (None, [])		(* unreachable if valid_RAL (S n) l *)
 	| [RAL_One clbt] => (Some clbt, [])
@@ -116,29 +152,37 @@ Let Fixpoint uncons (l : RAL) : option (CLBT) * RAL :=
 	end.
 
 Local Lemma uncons_valid_lhs : forall (l : RAL) {n : nat},
-	valid_RAL n l -> valid_option_CLBT n (fst (uncons l)).
+	valid_RAL (S n) l ->
+	exists clbt, valid_CLBT (S n) clbt /\ Some clbt = fst (uncons l).
 Proof.
 	intro l.
-	{	induction l as [|bit t HR]; intros n H.
-	+	apply valid_CLBT_None.
-	+	{	destruct bit; simpl.
-		+	destruct (uncons t).
-			{	destruct o.
-			+	inversion_clear H.
-				apply HR in H0.
-				inversion_clear H0.
-				apply CLBT_break_snd_valid in H.
-				destruct (CLBT_break c) as [cl cr].
-				apply valid_CLBT_Some.
-				exact H.
-			+	apply valid_CLBT_None.
-			}
-		+	destruct t;
-				inversion_clear H;
-				apply valid_CLBT_Some;
-				assumption.
+	{	induction l as [|bit t HR]; intros n Hl; inversion_clear Hl.
+	+	exists clbt.
+		{	split.
+		+	assumption.
+		+	reflexivity.
+		}
+	+	apply HR in H.
+		destruct H as [clbt].
+		destruct H as [Hclbt Heq].
+		destruct clbt as [| clbtl clbtr]; inversion_clear Hclbt.
+		exists clbtr.
+		{	split.
+		+	assumption.
+		+	simpl.
+			destruct (uncons t).
+			simpl in Heq.
+			rewrite <- Heq.
+			reflexivity.
+		}
+	+	exists clbt.
+		{	split.
+		+	assumption.
+		+	simpl.
+			destruct t; reflexivity.
 		}
 	}
+
 Qed.
 
 Local Lemma uncons_valid_rhs : forall (l : RAL) {n : nat},
@@ -154,25 +198,23 @@ Proof.
 		+	left.
 			specialize (HR (S n) H0).
 			apply uncons_valid_lhs in H0.
-			destruct (uncons t) eqn:Huncons.
-			{	destruct o; inversion_clear H0.
-			+	apply CLBT_break_fst_valid in H.
-				destruct (CLBT_break _).
-				{	destruct HR.
-				+	apply valid_RAL_One; assumption.
-				+	inversion H0 as [clbt H1].
-					rewrite H1 in Huncons.
-					inversion_clear Huncons.
-					apply valid_RAL_Top.
-					assumption.
-				}
-			+	apply valid_RAL_Zero.
-				{	destruct HR.
-				+	assumption.
-				+	decompose record H.
-					rewrite H0 in Huncons.
-					discriminate.
-				}
+			{	destruct HR.
+			+	destruct H0 as [clbt H0], H0 as [Hclbt Heq].
+				destruct (uncons t).
+				simpl in Heq, H.
+				rewrite <- Heq.
+				destruct clbt as [|clbtl clbtr]; inversion_clear Hclbt.
+				apply valid_RAL_One; assumption.
+			+	destruct H as [clbtTop Hct].
+				destruct H0 as [clbtLhs Hcl].
+				destruct Hcl as [Hclbt Heq].
+				rewrite Hct in *.
+				simpl in *.
+				inversion Heq as [He].
+				rewrite <- He.
+				destruct clbtLhs; inversion_clear Hclbt.
+				apply valid_RAL_Top.
+				assumption.
 			}
 		+	right.
 			exists c.
@@ -203,64 +245,119 @@ Proof.
 	}
 Qed.
 
+Lemma RAL_cons_tail_aux : forall (l : RAL) (clbt : CLBT) {n : nat},
+	valid_RAL n l -> valid_CLBT n clbt ->
+	uncons (RAL_cons_aux clbt l) = (Some clbt, l).
+Proof.
+	intros l.
+	{	induction l as [| bit t HR]; try destruct bit;
+			intros clbt n Hl Hclbt.
+	+	reflexivity.
+	+	{	destruct t; inversion_clear Hl.
+		+	inversion_clear H.
+		+	reflexivity.
+		}
+	+	simpl.
+		{	destruct t; inversion_clear Hl.
+		+	reflexivity.
+		+	reflexivity.
+		+	pose proof (Hmerge := CLBT_merge_valid _ _ H Hclbt).
+			pose proof (Huncons := RAL_cons_aux_valid _ _ H0 Hmerge).
+			apply uncons_valid_lhs in Huncons.
+			specialize (HR _ _ H0 Hmerge).
+			destruct Huncons as [c0 Huncons], Huncons as [Hc0 Hc0eq].
+			destruct (uncons _).
+			simpl in Hc0eq.
+			rewrite <- Hc0eq.
+			destruct c0 as [|c0l c0r]; inversion_clear Hc0.
+			simpl.
+			apply pair_equal_spec in HR; destruct HR as [Ho Hrt].
+			rewrite <- Hc0eq in Ho.
+			inversion_clear Ho.
+			{	apply injective_projections; simpl.
+			+	reflexivity.
+			+	f_equal.
+				assumption.
+			}
+		}
+	}
+Qed.
+
+Lemma RAL_cons_tail : forall (l : RAL) (a : A),
+	valid_RAL 0 l ->
+	RAL_tail (RAL_cons a l) = l.
+Proof.
+	intros l a H.
+	pose proof (HR := RAL_cons_tail_aux _ _ H (singleton_valid a)).
+	unfold RAL_tail, RAL_cons.
+	destruct (uncons _).
+	apply pair_equal_spec in HR.
+	destruct HR.
+	assumption.
+Qed.
+
 End RAL_tail.
 
 Section RAL_lookup.
 
-Let Fixpoint RAL_lookup_aux (l : RAL) (n : BinNat) (pos : list Bit) : option A :=
-	match l with
-	| [] => None
-	| bit :: tl => match bit, n with
-		| RAL_One clbt, [] => Some (CLBT_lookup clbt pos)
-		| RAL_Zero, [] => RAL_lookup_aux tl [] (0 :: pos)
-		| RAL_Zero, b :: tn => RAL_lookup_aux tl tn (b :: pos)
-		| RAL_One clbt, 1 :: tn => RAL_lookup_aux tl tn (0 :: pos)
-		| RAL_One _, 0 :: tn => RAL_lookupBorrow tl tn (1 :: pos)
-		end
+Local Fixpoint RAL_lookup_aux (l : RAL) (n : BinNat) (pos : list Bit) : option A :=
+	match l, n with
+	| [], _ => None
+	| RAL_One clbt :: _, [] => Some (CLBT_lookup clbt pos)
+	| RAL_Zero :: tl, [] => RAL_lookup_aux tl [] (0 :: pos)
+	| RAL_Zero :: tl, b :: tn => RAL_lookup_aux tl tn (b :: pos)
+	| RAL_One _ :: tl, 1 :: tn => RAL_lookup_aux tl tn (0 :: pos)
+	| RAL_One _ :: tl, 0 :: tn => RAL_lookup_borrow tl tn (1 :: pos)
 	end
-with RAL_lookupBorrow (l : RAL) (n : BinNat) (pos : list Bit) : option A :=
-	match l with
-	| [] => None
-	| bit :: tl => match bit, n with
-		| RAL_One clbt, [] => Some (CLBT_lookup clbt pos)
-		| RAL_Zero, [] => None (* Non reachable if n canonical *)
-		| RAL_Zero, 0 :: tn => RAL_lookupBorrow tl tn (1 :: pos)
-		| RAL_One _, 0 :: tn => RAL_lookupBorrow tl tn (0 :: pos)
-		| RAL_Zero, 1 :: tn => RAL_lookup_aux tl tn (0 :: pos)
-		| RAL_One clbt, [1] => Some (CLBT_lookup clbt pos)
-		| RAL_One _, 1 :: tn => RAL_lookupBorrow tl tn (0 :: pos)
-		end
+with RAL_lookup_borrow (l : RAL) (n : BinNat) (pos : list Bit) : option A :=
+	match l, n with
+	| RAL_One clbt :: _, [] => Some (CLBT_lookup clbt pos)
+	| RAL_Zero :: tl, [] => RAL_lookup_borrow tl [] (1 :: pos)
+	| [], _ => None
+	| RAL_One clbt :: _, [1] => Some (CLBT_lookup clbt pos)
+	| RAL_Zero :: tl, 1 :: tn => RAL_lookup_aux tl tn (0 :: pos)
+	| RAL_One _ :: tl, 1 :: tn | RAL_Zero :: tl, 0 :: tn
+		=> RAL_lookup_borrow tl tn (1 :: pos)
+	| RAL_One _ :: tl, 0 :: tn => RAL_lookup_borrow tl tn (0 :: pos)
 	end.
 
 Definition RAL_lookup l n := RAL_lookup_aux l n [].
+
+Lemma RAL_lookup_cons_aux : forall (l : RAL) (clbt : CLBT) (n : BinNat)
+	(pos : list Bit) {d : nat},
+	valid_RAL d l -> valid_BinNat d n ->
+	RAL_lookup_aux l n pos = RAL_lookup_aux.
+
+Lemma RAL_lookup_cons : forall (l : RAL) (a : A) (n : BinNat),
+	valid_RAL 0 l -> valid_BinNat 0 n ->
+	RAL_lookup l n = RAL_lookup (RAL_cons a l) (inc n).
+Proof.
+Qed.
 
 End RAL_lookup.
 
 Section RAL_update.
 
 Fixpoint RAL_update_aux (l : RAL) (n : BinNat) (pos : list Bit) (a : A) : RAL :=
-	match l with
-	| [] => []
-	| bit :: tl => match bit, n with
-		| RAL_One clbt, [] => RAL_One (CLBT_update clbt pos a) :: tl
-		| RAL_Zero, [] => bit :: RAL_update_aux tl [] (0 :: pos) a
-		| RAL_Zero, b :: tn => bit :: RAL_update_aux tl tn (b :: pos) a
-		| RAL_One _, 1 :: tn => bit :: RAL_update_aux tl tn (0 :: pos) a
-		| RAL_One _, 0 :: tn => bit :: RAL_updateBorrow tl tn (1 :: pos) a
-		end
+	match l, n with
+	| [], _ => []
+	| RAL_One clbt :: tl, [] => RAL_One (CLBT_update clbt pos a) :: tl
+	| RAL_Zero :: tl, [] => RAL_Zero :: RAL_update_aux tl [] (0 :: pos) a
+	| RAL_Zero :: tl, b :: tn => RAL_Zero :: RAL_update_aux tl tn (b :: pos) a
+	| (RAL_One _ as bit) :: tl, 1 :: tn => bit :: RAL_update_aux tl tn (0 :: pos) a
+	| (RAL_One _ as bit) :: tl, 0 :: tn => bit :: RAL_updateBorrow tl tn (1 :: pos) a
 	end
 with RAL_updateBorrow (l : RAL) (n : BinNat) (pos : list Bit) (a : A) : RAL :=
-	match l with
-	| [] => []
-	| bit :: tl => match bit, n with
-		| RAL_One clbt, [] => RAL_One (CLBT_update clbt pos a) :: tl
-		| RAL_Zero, [] => l (* Non reachable if n canonical *)
-		| RAL_Zero, 0 :: tn => bit :: RAL_updateBorrow tl tn (1 :: pos) a
-		| RAL_One _, 0 :: tn => bit :: RAL_updateBorrow tl tn (0 :: pos) a
-		| RAL_Zero, 1 :: tn => bit :: RAL_update_aux tl tn (0 :: pos) a
-		| RAL_One clbt, [1] => RAL_One (CLBT_update clbt pos a) :: tl
-		| RAL_One _, 1 :: tn => bit :: RAL_updateBorrow tl tn (0 :: pos) a
-		end
+	match l, n with
+	| RAL_One clbt :: tl, [] => RAL_One (CLBT_update clbt pos a) :: tl
+	| RAL_Zero :: tl, [] => RAL_Zero :: RAL_updateBorrow tl [] (1 :: pos) a
+	| [], _ => []
+	| RAL_One clbt :: tl, [1] => RAL_One (CLBT_update clbt pos a) :: tl
+	| RAL_Zero :: tl, 1 :: tn => RAL_Zero :: RAL_update_aux tl tn (0 :: pos) a
+	| (RAL_One _ as bit) :: tl, 1 :: tn | (RAL_Zero as bit) :: tl, 0 :: tn
+		=> bit :: RAL_updateBorrow tl tn (1 :: pos) a
+	| (RAL_One _ as bit) :: tl, 0 :: tn
+		=> bit :: RAL_updateBorrow tl tn (0 :: pos) a
 	end.
 
 Definition RAL_update l n a := RAL_update_aux l n [] a.
@@ -305,6 +402,7 @@ Proof.
 		+	{	destruct bit as [| clbt], n as [|b tn];
 				inversion_clear Hl; simpl.
 			+	apply valid_RAL_Zero.
+				apply (HR [] (1 :: pos)).
 				assumption.
 			+	{	destruct b; apply valid_RAL_Zero.
 				+	apply (HR tn (1 :: pos)).
@@ -341,7 +439,7 @@ Proof.
 						assumption.
 					+	assumption.
 					+	assumption.
-					+	apply (HR (b :: tn) (0 :: pos)).
+					+	apply (HR (b :: tn) (1 :: pos)).
 						assumption.
 					}
 				}
