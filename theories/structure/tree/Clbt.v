@@ -109,4 +109,27 @@ Proof.
 	}
 Qed.
 
+Section DCLBT.
+
+Context {R : Type}.
+
+Inductive DCLBT :=
+	| DCLBT_Root : R -> DCLBT
+	| DCLBT_Left : DCLBT -> CLBT -> DCLBT
+	| DCLBT_Right : CLBT -> DCLBT -> DCLBT.
+
+Definition DCLBT_rotate_left t dt :=
+	match t with
+	| Leaf _ => (t, dt)
+	| Node l r => (l, DCLBT_Left dt r)
+	end.
+
+Definition DCLBT_rotate_right t dt :=
+	match t with
+	| Leaf _ => (t, dt)
+	| Node l r => (r, DCLBT_Right l dt)
+	end.
+
+End DCLBT.
+
 End CLBT.
