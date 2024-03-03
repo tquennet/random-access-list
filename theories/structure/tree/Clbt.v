@@ -42,6 +42,17 @@ Fixpoint CLBT_head (t : CLBT) : A :=
 	| Node _ r => CLBT_head r
 	end.
 
+Definition CLBT_left (t : CLBT) :=
+	match t with
+	| Leaf _ => t
+	| Node l _ => l
+	end.
+Definition CLBT_right (t : CLBT) :=
+	match t with
+	| Leaf _ => t
+	| Node _ r => r
+	end.
+
 Definition CLBT_break (t : CLBT) : (CLBT * CLBT) :=
 	match t with
 	| Node l r => (l, r)

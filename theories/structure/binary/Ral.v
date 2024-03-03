@@ -27,11 +27,17 @@ Inductive valid_RAL : nat -> RAL -> Prop :=
 		valid_CLBT n clbt -> valid_RAL (S n) ral
 		-> valid_RAL n (RAL_One clbt :: ral).
 
-Definition empty : RAL := [].
-Definition is_empty (l : RAL) :=
+Definition RAL_empty : RAL := [].
+Definition RAL_is_empty (l : RAL) :=
 	match l with
 	| [] => true
 	| _ => false
+	end.
+
+Local Definition RAL_safe_zero l :=
+	match l with
+	| [] => []
+	| _ => RAL_Zero :: l
 	end.
 
 Section RAL_size.
@@ -113,8 +119,6 @@ Proof.
 		}
 	}
 Qed.
-
-
 
 Definition RAL_cons (a : A) (l : RAL) := RAL_cons_aux (singleton a) l.
 
@@ -298,9 +302,78 @@ Qed.
 
 End RAL_tail.
 
+Section RAL_discard.
+
+Local Definition DRAL := RAL.
+Local Definition RAL_discard_zipper := @DCLBT A DRAL.
+
+Local Definition RAL_discard_split (o : option (CLBT * RAL_discard_zipper * RAL)) (b : Bit) :=
+	match o, b with
+	| None, _ => None
+	| Some (clbt, zipper, l), 0
+		=> Some (DCLBT_rotate_left clbt zipper, RAL_safe_zero l)
+	| Some (clbt, zipper, l), 1
+		=> Some (DCLBT_rotate_right clbt zipper, RAL_One (CLBT_left clbt) :: l)
+	end.
+
+Local Fixpoint RAL_discard_aux (l : RAL) (n : BinNat) (dral : DRAL)
+		: option (CLBT * RAL_discard_zipper * RAL) :=
+	match l, n with
+	| [], _ => None
+	| _, [] => None
+	| RAL_One clbt :: tl, [1] => Some (clbt, DCLBT_Root dral, RAL_safe_zero tl)
+	| RAL_One _ as bit :: tl, 1 :: tn | RAL_Zero as bit :: tl, 0 :: tn
+		=> RAL_discard_split (RAL_discard_aux tl tn (bit :: dral)) 0
+	| RAL_One _ as bit :: tl, 0 :: tn
+		=> RAL_discard_split (RAL_discard_aux tl tn (bit :: dral)) 1
+	| RAL_Zero as bit :: tl, 1 :: tn
+		=> RAL_discard_split (RAL_discard_borrow tl tn (bit :: dral)) 1
+	end
+with RAL_discard_borrow  (l : RAL) (n : BinNat) (dral : DRAL)
+		: option (CLBT * RAL_discard_zipper * RAL) :=
+	match l, n with
+	| [], _ => None
+	| RAL_One clbt :: tl, [] => Some (clbt, DCLBT_Root dral, RAL_safe_zero tl)
+	| RAL_Zero as bit :: tl, []
+		=> RAL_discard_split (RAL_discard_borrow tl [] (bit :: dral)) 1
+	| RAL_One _ as bit :: tl, 1 :: tn | RAL_Zero as bit :: tl, 0 :: tn
+		=> RAL_discard_split (RAL_discard_borrow tl tn (bit :: dral)) 1
+	| RAL_One _ as bit :: tl, 0 :: tn
+		=> RAL_discard_split (RAL_discard_aux tl tn (bit :: dral)) 0
+	| RAL_Zero as bit :: tl, 1 :: tn
+		=> RAL_discard_split (RAL_discard_borrow tl tn (bit :: dral)) 0
+	end.
+
+Local Definition RAL_undiscard_keep '(dl, l) : (DRAL * RAL) :=
+	match dl with
+	| [] => ([], l)
+	| bit :: dt => (dt, bit :: l)
+	end.
+
+Local Fixpoint RAL_undiscard (clbt : CLBT) (zipper : RAL_discard_zipper) (l : RAL)
+		: DRAL * RAL :=
+	match zipper with
+	| DCLBT_Root dral => (dral, RAL_One clbt :: l)
+	| DCLBT_Left dt t => RAL_undiscard_keep (RAL_undiscard (Node clbt t) dt (tail l))
+	| DCLBT_Right t dt => RAL_undiscard_keep (RAL_undiscard (Node t clbt) dt (tail l)) 
+	end.
+
+Definition RAL_discard l n :=
+	match n with
+	| [] => l 
+	| _ => match RAL_discard_aux l n [] with
+		| None => []
+		| Some (_, _, l) => l
+		end
+	end.
+
+End RAL_discard.
+
 Section RAL_lookup.
 
-Local Fixpoint RAL_lookup_aux (l : RAL) (n : BinNat) (pos : list Bit) : option A :=
+Definition RAL_lookup l n := RAL_head (RAL_discard l n).
+
+(*Local Fixpoint RAL_lookup_aux (l : RAL) (n : BinNat) (pos : list Bit) : option A :=
 	match l, n with
 	| [], _ => None
 	| RAL_One clbt :: _, [] => Some (CLBT_lookup clbt pos)
@@ -321,7 +394,7 @@ with RAL_lookup_borrow (l : RAL) (n : BinNat) (pos : list Bit) : option A :=
 	| RAL_One _ :: tl, 0 :: tn => RAL_lookup_borrow tl tn (0 :: pos)
 	end.
 
-Definition RAL_lookup l n := RAL_lookup_aux l n [].
+Definition RAL_lookup l n := RAL_lookup_aux l n [].*)
 
 End RAL_lookup.
 
