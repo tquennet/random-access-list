@@ -336,7 +336,11 @@ Local Definition DRAL := RAL.
 Local Definition RAL_discard_zipper := @CLBT_zip A DRAL.
 
 Inductive valid_DRAL : nat -> DRAL -> Prop :=
-	| valid_DRAL_all : forall {n : nat} (dl : DRAL), valid_DRAL n dl. (* TODO *)
+	| valid_DRAL_Nil : valid_DRAL 0 []
+	| valid_DRAL_Zero : forall {n : nat} (dl : DRAL),
+		valid_DRAL n dl -> valid_DRAL (S n) (RAL_Zero :: dl)
+	| valid_DRAL_One : forall {n : nat} (dl : DRAL) (clbt : CLBT),
+		valid_DRAL n dl -> valid_CLBT n clbt -> valid_DRAL (S n) (RAL_One clbt :: dl).
 
 Local Definition RAL_discard_split (o : option (RAL_discard_zipper * RAL)) (b : Bit)
 		:	option (RAL_discard_zipper * RAL) :=
@@ -374,23 +378,6 @@ with RAL_discard_borrow  (l : RAL) (n : BinNat) (dral : DRAL)
 		=> RAL_discard_split (RAL_discard_aux tl tn (bit :: dral)) 0
 	| RAL_Zero as bit :: tl, 1 :: tn
 		=> RAL_discard_split (RAL_discard_borrow tl tn (bit :: dral)) 0
-	end.
-
-Local Definition RAL_undiscard_keep '(dl, l) : (DRAL * RAL) :=
-	match dl with
-	| [] => ([], l)
-	| bit :: dt => (dt, bit :: l)
-	end.
-
-Local Fixpoint RAL_undiscard (clbt : CLBT) (zipper : DCLBT) (l : RAL)
-		: DRAL * RAL :=
-	match zipper, l with
-	| DCLBT_Root dral, _ => (dral, RAL_One clbt :: l)
-	| DCLBT_Left dt t, _ => RAL_undiscard_keep (RAL_undiscard (Node clbt t) dt (tail l))
-	| DCLBT_Right t dt, RAL_Zero :: _ | DCLBT_Right t dt, []
-		=> RAL_undiscard_keep (RAL_undiscard (Node t clbt) dt (tail l))
-	| DCLBT_Right _ dt, RAL_One t :: _
-		=> RAL_undiscard_keep (RAL_undiscard (Node t clbt) dt (tail l))
 	end.
 
 Definition RAL_discard l n :=
@@ -439,88 +426,88 @@ Proof.
 Qed.
 
 Local Lemma RAL_discard_aux_valid : forall (l : RAL) (n : BinNat) (dral : DRAL) {d : nat},
-	valid_RAL d l ->
+	valid_RAL d l -> valid_DRAL d dral ->
 	valid_discard_option d (RAL_discard_aux l n dral)
 	/\ valid_discard_option d (RAL_discard_borrow l n dral).
 Proof.
 	intro l.
-	{	induction l as [| bit t HR]; intros n dral d H; split; simpl.
+	{	induction l as [| bit t HR]; intros n dral d Hl Hd; split; simpl.
 	+	apply OP_None.
 	+	apply OP_None.
 	+	{	destruct n as [|b tn]; [| destruct b]; destruct bit as [| clbt].
 		+	apply OP_None.
 		+	apply OP_None.
-		+	inversion_clear H.
+		+	inversion_clear Hl.
+			apply valid_DRAL_Zero in Hd.
 			apply RAL_discard_split_valid.
-			apply HR.
-			assumption.
+			apply HR; assumption.
 		+	apply RAL_discard_split_valid.
-			inversion_clear H; [apply OP_None|].
-			apply HR.
-			assumption.
-		+	inversion_clear H.
+			inversion_clear Hl; [apply OP_None|].
+			apply (valid_DRAL_One _ clbt) in Hd; [| assumption].
+			apply HR; assumption.
+		+	inversion_clear Hl.
 			apply RAL_discard_split_valid.
-			apply HR.
-			assumption.
+			apply valid_DRAL_Zero in Hd.
+			apply HR; assumption.
 		+	{	destruct tn.
 			+	apply OP_Some.				
 				{	split; [split|].
-				+	inversion_clear H; assumption.
+				+	inversion_clear Hl; assumption.
 				+	apply valid_DCLBT_Root.
-					apply valid_DRAL_all.
+					assumption.
 				+	apply RAL_safe_zero_valid.	
-					{	inversion_clear H.
+					{	inversion_clear Hl.
 					+	right.
 						reflexivity.
 					+	left.
 						assumption.
 					}
 				}
-			+	{	inversion_clear H.
+			+	{	inversion_clear Hl.
 				+	apply OP_None.
 				+	apply RAL_discard_split_valid.
-					apply HR.
-					assumption.
+					apply (valid_DRAL_One _ clbt) in Hd; [| assumption].
+					apply HR; assumption.
 				}
 			}
 		}
 	+	{	destruct n as [|b tn]; [| destruct b]; destruct bit as [| clbt].
-		+	inversion_clear H.
+		+	inversion_clear Hl.
 			apply RAL_discard_split_valid.
-			apply HR.
-			assumption.
+			apply valid_DRAL_Zero in Hd.
+			apply HR; assumption.
 		+	apply OP_Some.
 			{	split; [split|].
-			+	inversion_clear H; assumption.
+			+	inversion_clear Hl; assumption.
 			+	apply valid_DCLBT_Root.
-				apply valid_DRAL_all.
+				assumption.
 			+	apply RAL_safe_zero_valid.
-				{	inversion_clear H.
+				{	inversion_clear Hl.
 					+	right.
 						reflexivity.
 					+	left.
 						assumption.
 				}
 			}
-		+	inversion_clear H.
+		+	inversion_clear Hl.
 			apply RAL_discard_split_valid.
-			apply HR.
-			assumption.
-		+	{	inversion_clear H.
+			apply valid_DRAL_Zero in Hd.
+			apply HR; assumption.
+		+	{	inversion_clear Hl.
 			+	apply OP_None.
 			+	apply RAL_discard_split_valid.
-				apply HR.
-				assumption.
+				apply (valid_DRAL_One _ clbt) in Hd; [| assumption].
+				apply HR; assumption.
 			}
-		+	inversion_clear H.
+		+	inversion_clear Hl.
 			apply RAL_discard_split_valid.
-			apply HR.
-			assumption.
-		+	{	inversion_clear H.
+			apply valid_DRAL_Zero in Hd.
+			apply HR; assumption.
+		+	{	inversion_clear Hl.
 			+	apply OP_None.
 			+	apply RAL_discard_split_valid.
-				apply HR.
-				assumption.
+				apply (valid_DRAL_One _ clbt) in Hd; [| assumption].
+				apply HR; assumption.
 			}
 		}
 	}
@@ -533,52 +520,137 @@ Proof.
 	{	destruct n.
 	+	assumption.
 	+	simpl.
-		apply (RAL_discard_aux_valid l (b :: n) []) in H.
-		destruct H as [H H2].
-		{	destruct (RAL_discard_aux l (b :: n)).
-		+	destruct p as [p r].
-			inversion H.
-			destruct H1 as [Hz Hl].
-			{	destruct Hl as [Hl|Hl].
-			+	assumption.
-			+	rewrite Hl.
-				apply valid_RAL_Nil.
+		{	apply (RAL_discard_aux_valid l (b :: n) []) in H.
+		+	destruct H as [H H2].
+			{	destruct (RAL_discard_aux l (b :: n)).
+			+	destruct p as [p r].
+				inversion H.
+				destruct H1 as [Hz Hl].
+				{	destruct Hl as [Hl|Hl].
+				+	assumption.
+				+	rewrite Hl.
+					apply valid_RAL_Nil.
+				}
+			+	apply valid_RAL_Nil.
 			}
-		+	apply valid_RAL_Nil.
+		+	apply valid_DRAL_Nil.
+		}
+	}
+Qed.
+
+Local Definition RAL_undiscard_keep '(dl, l) : (DRAL * RAL) :=
+	match dl with
+	| [] => ([], l)
+	| bit :: dt => (dt, bit :: l)
+	end.
+
+Local Fixpoint RAL_undiscard (clbt : CLBT) (zipper : DCLBT) (l : RAL)
+		: DRAL * RAL :=
+	match zipper, l with
+	| DCLBT_Root dral, _ => (dral, RAL_One clbt :: (tail l))
+	| DCLBT_Left dt t, _ => RAL_undiscard_keep (RAL_undiscard (Node clbt t) dt (tail l))
+	| DCLBT_Right t dt, RAL_Zero :: _ | DCLBT_Right t dt, []
+		=> RAL_undiscard_keep (RAL_undiscard (Node t clbt) dt (tail l))
+	| DCLBT_Right _ dt, RAL_One t :: _
+		=> RAL_undiscard_keep (RAL_undiscard (Node t clbt) dt (tail l))
+	end.
+
+Definition valid_RAL_zip (n : nat) '(dl, l) := valid_DRAL n dl /\ valid_RAL n l.
+
+Definition RAL_undiscard_keep_valid : forall (rzip : DRAL * RAL) {n : nat},
+	valid_RAL_zip (S n) rzip -> valid_RAL_zip n (RAL_undiscard_keep rzip).
+Proof.
+	intros rzip n H.
+	destruct rzip as [dl l].
+	destruct H as [Hdl Hl].
+	{	destruct dl; inversion_clear Hdl; split.
+	+	assumption.
+	+	apply valid_RAL_Zero.
+		assumption.
+	+	assumption.
+	+	apply valid_RAL_One; assumption.
+	}
+Qed.
+
+
+Lemma RAL_undiscard_valid : forall (dt : DCLBT) (t : CLBT) (l : RAL) {n : nat},
+	valid_RAL n l \/ l = [] -> valid_CLBT_zip valid_DRAL n (t, dt) ->
+	valid_RAL_zip n (RAL_undiscard t dt l).
+Proof.
+	intros dt.
+	{	induction dt as [r| dt HR| c dc HR]; intros t l n Hl Hzip; destruct Hzip as [Ht Hdt]; simpl.
+	+	inversion_clear Hdt.
+		{	split; [| destruct l as [| bit tl]].
+		+	assumption.
+		+	apply valid_RAL_Top.
+			assumption.
+		+	destruct Hl as [Hl|Hl]; [|discriminate].
+			{	inversion_clear Hl.
+			+	apply valid_RAL_Top.
+				assumption.
+			+	apply valid_RAL_One; assumption.
+			+	apply valid_RAL_One; assumption.
+			}
+		}
+	+	apply RAL_undiscard_keep_valid.
+		{	apply HR.
+		+	{	destruct l as [| bit tl]; [| destruct tl as [|bit2 tl]].
+			+	right.
+				reflexivity.
+			+	right.
+				reflexivity.
+			+	left.
+				destruct Hl as [Hl|Hl]; [|discriminate].
+				inversion_clear Hl; assumption.
+			}
+		+	inversion_clear Hdt.
+			pose proof (Hvn := valid_Node _ _ Ht H0).
+			split; assumption.
+		}
+	+	{	destruct l as [| bit tl]; [| destruct bit];
+				apply RAL_undiscard_keep_valid.
+		+	{	apply HR.
+			+	right.
+				reflexivity.
+			+	inversion_clear Hdt.
+				pose proof (Hvn := valid_Node _ _ H Ht).
+				split; assumption.
+			}
+		+	{	apply HR.
+			+	{	destruct tl as [|bit2 tl].
+				+	right.
+					reflexivity.
+				+	left.
+					destruct Hl as [Hl|Hl]; [|discriminate].
+					inversion_clear Hl.
+					assumption.
+				}
+			+	inversion_clear Hdt.
+				pose proof (Hvn := valid_Node _ _ H Ht).
+				split; assumption.
+			}
+		+	{	apply HR.
+			+	{	destruct tl as [|bit2 tl].
+				+	right.
+					reflexivity.
+				+	left.
+					destruct Hl as [Hl|Hl]; [|discriminate].
+					inversion_clear Hl.
+					assumption.
+				}
+			+	destruct Hl as [Hl|Hl]; [|discriminate].
+				inversion_clear Hdt.
+				inversion_clear Hl;
+					pose proof (Hvn := valid_Node _ _ H1 Ht);
+					split; assumption.
+			}
 		}
 	}
 Qed.
 
 End RAL_discard.
 
-Section RAL_lookup.
-
 Definition RAL_lookup l n := RAL_head (RAL_discard l n).
-
-(*Local Fixpoint RAL_lookup_aux (l : RAL) (n : BinNat) (pos : list Bit) : option A :=
-	match l, n with
-	| [], _ => None
-	| RAL_One clbt :: _, [] => Some (CLBT_lookup clbt pos)
-	| RAL_Zero :: tl, [] => RAL_lookup_aux tl [] (0 :: pos)
-	| RAL_Zero :: tl, b :: tn => RAL_lookup_aux tl tn (b :: pos)
-	| RAL_One _ :: tl, 1 :: tn => RAL_lookup_aux tl tn (0 :: pos)
-	| RAL_One _ :: tl, 0 :: tn => RAL_lookup_borrow tl tn (1 :: pos)
-	end
-with RAL_lookup_borrow (l : RAL) (n : BinNat) (pos : list Bit) : option A :=
-	match l, n with
-	| RAL_One clbt :: _, [] => Some (CLBT_lookup clbt pos)
-	| RAL_Zero :: tl, [] => RAL_lookup_borrow tl [] (1 :: pos)
-	| [], _ => None
-	| RAL_One clbt :: _, [1] => Some (CLBT_lookup clbt pos)
-	| RAL_Zero :: tl, 1 :: tn => RAL_lookup_aux tl tn (0 :: pos)
-	| RAL_One _ :: tl, 1 :: tn | RAL_Zero :: tl, 0 :: tn
-		=> RAL_lookup_borrow tl tn (1 :: pos)
-	| RAL_One _ :: tl, 0 :: tn => RAL_lookup_borrow tl tn (0 :: pos)
-	end.
-
-Definition RAL_lookup l n := RAL_lookup_aux l n [].*)
-
-End RAL_lookup.
 
 Section RAL_update.
 
@@ -587,6 +659,17 @@ Local Definition touch_head l a :=
 	| [] => []
 	| _ => RAL_cons a (RAL_tail l)
 	end.
+
+Lemma RAL_touch_head_valid : forall (l : RAL) (a : A),
+	valid_RAL 0 l -> valid_RAL 0 (touch_head l a).
+Proof.
+	intros l a H.
+	{	destruct l.
+	+	assumption.
+	+	apply RAL_cons_valid, RAL_tail_valid.
+		assumption.
+	}
+Qed.
 
 Definition RAL_update l n a :=
 	match n with
@@ -597,123 +680,41 @@ Definition RAL_update l n a :=
 		end
 	end.
 
-(*Fixpoint RAL_update_aux (l : RAL) (n : BinNat) (pos : list Bit) (a : A) : RAL :=
-	match l, n with
-	| [], _ => []
-	| RAL_One clbt :: tl, [] => RAL_One (CLBT_update clbt pos a) :: tl
-	| RAL_Zero :: tl, [] => RAL_Zero :: RAL_update_aux tl [] (0 :: pos) a
-	| RAL_Zero :: tl, b :: tn => RAL_Zero :: RAL_update_aux tl tn (b :: pos) a
-	| (RAL_One _ as bit) :: tl, 1 :: tn => bit :: RAL_update_aux tl tn (0 :: pos) a
-	| (RAL_One _ as bit) :: tl, 0 :: tn => bit :: RAL_updateBorrow tl tn (1 :: pos) a
-	end
-with RAL_updateBorrow (l : RAL) (n : BinNat) (pos : list Bit) (a : A) : RAL :=
-	match l, n with
-	| RAL_One clbt :: tl, [] => RAL_One (CLBT_update clbt pos a) :: tl
-	| RAL_Zero :: tl, [] => RAL_Zero :: RAL_updateBorrow tl [] (1 :: pos) a
-	| [], _ => []
-	| RAL_One clbt :: tl, [1] => RAL_One (CLBT_update clbt pos a) :: tl
-	| RAL_Zero :: tl, 1 :: tn => RAL_Zero :: RAL_update_aux tl tn (0 :: pos) a
-	| (RAL_One _ as bit) :: tl, 1 :: tn | (RAL_Zero as bit) :: tl, 0 :: tn
-		=> bit :: RAL_updateBorrow tl tn (1 :: pos) a
-	| (RAL_One _ as bit) :: tl, 0 :: tn
-		=> bit :: RAL_updateBorrow tl tn (0 :: pos) a
-	end.
-
-Definition RAL_update l n a := RAL_update_aux l n [] a.
-
-Lemma RAL_update_aux_valid : forall (l : RAL) (n : BinNat)
-		(pos : list Bit) (a : A),
-	valid_RAL (length pos) l ->
-	valid_RAL (length pos) (RAL_update_aux l n pos a)
-	/\ valid_RAL (length pos) (RAL_updateBorrow l n pos a).
-Proof.
-	intro l.
-	{	induction l as [|bit t HR]; intros n pos a Hl.
-	+	split; inversion_clear Hl; apply valid_RAL_Nil.
-	+	{	split.
-		+	{	destruct bit as [| clbt], n as [|b tn];
-				inversion_clear Hl; simpl.
-			+	apply valid_RAL_Zero.
-				apply (HR [] (0 :: pos)).
-				assumption.
-			+	apply valid_RAL_Zero.
-				apply (HR tn (b :: pos)).
-				assumption.
-			+	apply valid_RAL_Top.
-				apply CLBT_update_valid.
-				assumption.
-			+	pose (Hclbt := CLBT_update_valid _ _ a H).
-				{	destruct t.
-				+	apply valid_RAL_Top.
-					assumption.
-				+	apply valid_RAL_One; assumption.
-				}
-			+	destruct b; apply valid_RAL_Top; assumption.
-			+	{	destruct b; apply valid_RAL_One.
-				+	assumption.
-				+	apply (HR tn (1 :: pos)).
-					assumption.
-				+	assumption.
-				+	apply (HR tn (0 :: pos)).
-					assumption.
-				}
-			}
-		+	{	destruct bit as [| clbt], n as [|b tn];
-				inversion_clear Hl; simpl.
-			+	apply valid_RAL_Zero.
-				apply (HR [] (1 :: pos)).
-				assumption.
-			+	{	destruct b; apply valid_RAL_Zero.
-				+	apply (HR tn (1 :: pos)).
-					assumption.
-				+	apply (HR tn (0 :: pos)).
-					assumption.
-				}
-			+	apply valid_RAL_Top.
-				apply CLBT_update_valid.
-				assumption.
-			+	pose (Hclbt := CLBT_update_valid _ _ a H).
-				{	destruct t.
-				+	apply valid_RAL_Top.
-					assumption.
-				+	apply valid_RAL_One; assumption.
-				}
-			+	{	destruct b.
-				+	apply valid_RAL_Top.
-					assumption.
-				+	{	destruct tn; apply valid_RAL_Top.
-					+	apply CLBT_update_valid.
-						assumption.
-					+	assumption.
-					}
-				}
-			+	{	destruct b.
-				+	{	apply valid_RAL_One.
-					+	assumption.
-					+	apply (HR tn (0 :: pos)).
-						assumption.
-					}
-				+	{	destruct tn; apply valid_RAL_One.
-					+	apply CLBT_update_valid.
-						assumption.
-					+	assumption.
-					+	assumption.
-					+	apply (HR (b :: tn) (1 :: pos)).
-						assumption.
-					}
-				}
-			}
-		}
-	}
-Qed.
+Search or.
+SearchPattern ((?A -> ?B) -> ?A \/ ?B ->?B).
 
 Lemma RAL_update_valid : forall (l : RAL) (n : BinNat) (a : A),
 	valid_RAL 0 l -> valid_RAL 0 (RAL_update l n a).
 Proof.
 	intros l n a H.
-	apply (RAL_update_aux_valid l n []).
-	assumption.
-Qed.*)
+	{	destruct n.
+	+	apply RAL_touch_head_valid.
+		assumption.
+	+	simpl.
+		apply (RAL_discard_aux_valid _ (b :: n) []) in H.
+		apply proj1 in H.
+		{	destruct (RAL_discard_aux l (b :: n)).
+		+	destruct p as [zip r], zip as [c zip].
+			inversion_clear H.
+			destruct H0 as [Hz Hr], Hz as [Hc Hz].
+			{	assert (valid_RAL 0 (touch_head r a) \/ (touch_head r a) = []).
+			+	{	destruct Hr as [Hr|Hr].
+				+	left.
+					apply RAL_touch_head_valid.
+					assumption.
+				+	right.
+					rewrite Hr.
+					reflexivity.
+				}
+			+	apply (RAL_undiscard_valid zip c _) in H;
+					[| split; assumption].
+				destruct RAL_undiscard.
+				destruct H.
+				assumption.
+			}
+		}
+	}
+Qed.
 
 End RAL_update.
 
