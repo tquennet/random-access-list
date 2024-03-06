@@ -1,5 +1,6 @@
 Require Import numerical.binary.BinNat.
 Require Import structure.binary.Ral structure.tree.Clbt.
+Require Import utils.Utils.
 
 Require Import Lists.List.
 Import ListNotations.
@@ -65,111 +66,112 @@ Proof.
 	apply (RAL_tail_aux_dec _ H).
 Qed.
 
-Definition is_some {T : Type} (o : option T) :=
-	match o with
-	| Some _ => true
-	| None => false
-	end.
-
-Lemma RAL_lookup_aux_nil : forall (l : @RAL A) (b : Bit) (pos : list Bit),
-	valid_RAL (length (b :: pos)) l ->
-	is_some (Ral.RAL_lookup_aux l [] (b :: pos)) = true
-	/\ is_some (Ral.RAL_lookup_borrow l [] (b :: pos)) = true.
+Lemma RAL_discard_split_sub : forall (o : option (Ral.RAL_discard_zipper * @RAL A))
+	(b : Bit) (n : option BinNat),
+	option_map (fun '(_, l) => size l) o = n ->
+	option_map (fun '(_, l) => size l) (Ral.RAL_discard_split o b) = BinNat.add_bit n b.
 Proof.
-	intro l.
-	{	induction l as [| bit t HR]; intros b pos H; [|destruct bit]; split;
-			inversion_clear H.
-	+	apply HR.
-		assumption.
-	+	apply HR.
-		assumption.
-	+	reflexivity.
-	+	reflexivity.
-	+	reflexivity.
-	+	reflexivity.
+	intros o b n H.
+	{	destruct o as [p|]; [destruct p as [zip l], zip as [c zip], b|]; simpl.
+	+	rewrite <- H.		
+		destruct l as [|bit tl]; [|destruct bit]; reflexivity.
+	+	rewrite <- H.		
+		destruct l as [|bit tl]; [|destruct bit]; reflexivity.
+	+	rewrite <- H.
+		reflexivity.
 	}
 Qed.
 
-Lemma RAL_lookup_aux_gt : forall (l : @RAL A) (n : BinNat) (b : Bit) (pos : list Bit),
-	valid_RAL (length (b :: pos)) l -> valid_BinNat (length (b :: pos)) n ->
-	(is_some (Ral.RAL_lookup_aux l n (b :: pos)) = (n <? (size l)))
-	/\ (is_some (Ral.RAL_lookup_borrow l n (b :: pos)) = (gt_dec_borrow (size l) n)).
+Lemma RAL_BinNat_safe_zero : forall (l : @RAL A),
+	size (Ral.RAL_safe_zero l) = BinNat.BinNat_safe_zero (size l).
 Proof.
 	intro l.
-	{	induction l as [|bit tl HR]; intros n b pos Hl Hn.
-	+	{	split.
-		+	reflexivity.
-		+	inversion_clear Hl.
-		}
-	+	simpl.
-		{	split; destruct bit, n as [|bn tn]; simpl;
-				inversion_clear Hl; inversion_clear Hn.
-		+	apply RAL_size_non_zero in H as Hnz.
-			rewrite Hnz.
-			apply RAL_lookup_aux_nil.
+	destruct l as [|bit tl]; [| destruct bit]; reflexivity.
+Qed.
+
+Lemma RAL_discard_aux_sub_nil : forall (l : @RAL A) (dral : Ral.DRAL),
+	(option_map (fun '(_, l) => size l) (Ral.RAL_discard_aux l [] dral) =
+		BinNat.sub_aux (size l) []
+	/\ option_map (fun '(_, l) => size l) (Ral.RAL_discard_borrow l [] dral) =
+		BinNat.sub_borrow (size l) []).
+Proof.
+	intros l.
+	{	induction l as [|bit tl HR]; [|destruct bit]; intro dral; simpl; split.
+	+	reflexivity.
+	+	reflexivity.
+	+	reflexivity.
+	+	apply RAL_discard_split_sub.
+		apply HR.
+	+	reflexivity.
+	+	f_equal.
+		apply RAL_BinNat_safe_zero.
+	}
+Qed.
+
+Lemma RAL_discard_aux_sub : forall (l : @RAL A) (n : BinNat) (dral : Ral.DRAL) {d : nat},
+	valid_BinNat (S d) n ->
+	(option_map (fun '(_, l) => size l) (Ral.RAL_discard_aux l n dral) =
+		BinNat.sub_aux (size l) n
+	/\ option_map (fun '(_, l) => size l) (Ral.RAL_discard_borrow l n dral) =
+		BinNat.sub_borrow (size l) n).
+Proof.
+	intro l.
+	{	induction l as [| bit tl HR]; intros n dral; split; simpl.
+	+	reflexivity.
+	+	reflexivity.
+	+	{	destruct n as [|b tn]; [|destruct b]; destruct bit; simpl; inversion_clear H.
+		+	apply RAL_discard_split_sub.
+			apply (HR _ _ _ H0).
+		+	apply RAL_discard_split_sub.
+			apply (HR _ _ _ H0).
+		+	apply RAL_discard_split_sub.
+			apply RAL_discard_aux_sub_nil.
+		+	apply RAL_discard_split_sub.
+			apply (HR _ (RAL_Zero :: dral)), proj2 in H0.
 			assumption.
-		+	apply HR; assumption.
-		+	reflexivity.
-		+	simpl; destruct bn, tn; inversion_clear H0;
-				reflexivity.
-		+	apply RAL_size_non_zero in H0 as Hnz.
-			rewrite Hnz.
-			apply RAL_lookup_aux_nil.
-			assumption.
-		+	destruct bn;
-				apply HR; assumption.
-		+	apply RAL_size_non_zero in H as Hnz.
-			rewrite Hnz.
-			apply RAL_lookup_aux_nil.
-			assumption.
-		+	destruct bn; apply HR; assumption.
-		+	reflexivity.
-		+	destruct bn, tn; inversion_clear H0;
-				reflexivity.
-		+	destruct tl as [|b2 tl]; [| destruct b2];
-				reflexivity.
-		+	{	destruct bn; simpl.
-			+	apply HR; assumption.
-			+	{	destruct tn.
-				+	apply RAL_size_non_zero_borrow in H0 as Hnz.
-					rewrite Hnz.
-					reflexivity.
-				+	apply HR; assumption.
-				}
+		+	simpl; f_equal.
+			apply RAL_BinNat_safe_zero.
+		+	{	destruct tn; simpl.
+			+	f_equal.
+				apply RAL_BinNat_safe_zero.
+			+	apply RAL_discard_split_sub.
+				apply (HR _ (RAL_One c :: dral)), proj1 in H0.
+				assumption.
 			}
 		}
+	+	{	destruct n as [|b tn]; [|destruct b]; destruct bit; simpl; inversion_clear H.
+		+	apply RAL_discard_split_sub.
+			apply (HR _ _ _ H0).
+		+	apply RAL_discard_split_sub.
+			apply (HR _ _ _ H0).
+		+	apply RAL_discard_split_sub.
+			apply RAL_discard_aux_sub_nil.
+		+	apply RAL_discard_split_sub.
+			apply (HR _ (RAL_Zero :: dral)), proj2 in H0.
+			assumption.
+		+	apply RAL_discard_split_sub.
+			apply RAL_discard_aux_sub_nil.
+		+	apply RAL_discard_split_sub.
+			apply (HR _ (RAL_One c :: dral)), proj2 in H0.
+			assumption.
+		}
 	}
 Qed.
 
-
-Theorem RAL_lookup_gt : forall (l : @RAL A) (n : BinNat),
-	valid_RAL 0 l -> valid_BinNat 0 n ->
-	is_some (RAL_lookup l n) = (n <? (size l)).
+Theorem RAL_discard_sub : forall (l : @RAL A) (n : BinNat),
+		valid_BinNat 0 n ->
+		size (RAL_discard l n) = size l - n.
 Proof.
-	intros l n Hl Hn.
-	{	destruct l as [| bit lt].
+	intros l n H.
+	{	destruct n; simpl.
 	+	reflexivity.
-	+	{	destruct n as [|b tn]; [| destruct b];
-				inversion_clear Hl; simpl; inversion_clear Hn.
-		+	reflexivity.
-		+	apply RAL_lookup_aux_nil.
-			assumption.
-		+	reflexivity.
-		+	destruct tn; inversion_clear H0; reflexivity.
-		+	apply RAL_lookup_aux_gt; assumption.
-		+	apply RAL_lookup_aux_gt; assumption.
-		+	reflexivity.
-		+	reflexivity.
-		+	apply RAL_size_non_zero in H as Hnz.
-			rewrite Hnz.
-			apply RAL_lookup_aux_nil.
-			assumption.
-		+	apply RAL_lookup_aux_gt; assumption.
-		+	apply RAL_size_non_zero in H0 as Hnz.
-			rewrite Hnz.
-			apply RAL_lookup_aux_nil.
-			assumption.
-		+	apply RAL_lookup_aux_gt; assumption.
+	+	apply valid_BinNat_S in H.
+		apply (RAL_discard_aux_sub l _ []), proj1 in H.
+		{	destruct Ral.RAL_discard_aux as [p|]; [destruct p as [zip r]|]; simpl in H.
+		+	rewrite <- H.
+			reflexivity.
+		+	rewrite <- H.
+			reflexivity.
 		}
 	}
 Qed.

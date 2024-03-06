@@ -3,6 +3,7 @@ Require Import Init.Nat.
 Import ListNotations.
 
 Declare Scope bin_nat_scope.
+Open Scope bin_nat_scope.
 
 Variant Bit := Zero | One.
 Definition BinNat := list Bit.
@@ -23,37 +24,16 @@ Inductive valid_BinNat : nat -> BinNat -> Prop :=
 	| valid_BinNat_Cons : forall {n : nat} (l : BinNat) (b : Bit),
 		valid_BinNat (S n) l -> valid_BinNat n (b :: l).
 
-Lemma valid_BinNat_tail : forall (n : BinNat) (b : Bit),
-	valid_BinNat 0 (b :: n) -> valid_BinNat 0 n.
+Lemma valid_BinNat_S : forall (n : BinNat) (b : Bit) (d : nat),
+	valid_BinNat d (b :: n) -> valid_BinNat (S d) (b :: n).
 Proof.
-	{	assert (HR : forall  (n : BinNat) (b : Bit) {d : nat},
-			n <> [] -> valid_BinNat d (b :: n) -> valid_BinNat d n).
-	+	intro n.
-		{	induction n as [| bit t HR]; intros b d Hnil H; [| destruct bit].
-		+	contradiction.
-		+	inversion_clear H.
-			apply valid_BinNat_Cons.
-			{	apply (HR 0).
-			+	inversion_clear H0.
-				inversion_clear H; discriminate.
-			+	assumption.
-			}
-		+	destruct t; inversion_clear H.
-			apply valid_BinNat_Top.
-			apply valid_BinNat_Cons.
-			{	apply (HR 1).
-			+	discriminate.
-			+	assumption.
-			}
-		}
-	+	intros n b H.
-		{	destruct n.
-		+	apply valid_BinNat_Nil.
-		+	{	apply (HR _ b).
-			+	discriminate.
-			+	assumption.
-			}
-		}
+	intros n.
+	{	induction n as [|b2 tn HR]; intros b d H; inversion_clear H.
+	+	apply valid_BinNat_Top.
+	+	inversion_clear H0.
+	+	apply valid_BinNat_Cons.
+		apply HR.
+		assumption.
 	}
 Qed.
 
@@ -97,37 +77,51 @@ Fixpoint add n m :=
 	| 1 :: tn, 1 :: tm => 0 :: inc (tn + tm)
 	end where "n + m" := (add n m) : bin_nat_scope.
 
-Fixpoint gt_dec n m :=
-	match n, m with
-	| [], _ => false
-	| _, [] => true
-	| 1 :: tn, 0 :: tm => gt_dec_borrow tn tm
-	| _ :: tn, _ :: tm => tm <? tn
-	end
-with gt_dec_borrow n m :=
-	match n, m with
-	| _, [] => true
-	| [], _ => false
-	| 0 :: tn, 1 :: tm => tm <? tn
-	| _ :: tn, _ :: tm => gt_dec_borrow tn tm
-	end where "n <? m" := (gt_dec m n) : bin_nat_scope.
+Definition BinNat_safe_zero n :=
+	match n with
+	| [] => []
+	| _ => 0 :: n
+	end.
+Definition BinNat_safe_bit b n :=
+	match b with
+	| 0 => BinNat_safe_zero n
+	| 1 => 1 :: n
+	end.
 
-Notation "n <? m" := (gt_dec m n) : bin_nat_scope.
+Local Definition add_bit o b :=
+	match o with
+	| None => None
+	| Some n => Some (BinNat_safe_bit b n)
+	end.
 
-Fixpoint sub n m :=
+Local Fixpoint sub_aux n m :=
 	match n, m with
-	| [], _ => []
-	| _, [] => n
-	| b :: tn, 0 :: tm => b :: (tn - tm)
-	| 1 :: tn, 1 :: tm => 0 :: (tn - tm)
-	| 0 :: tn, 1 :: tm => 1 :: (sub_borrow tn tm)
+	| [], _ => None
+	| _, [] => None
+	| 1 :: tn, [1] => Some (BinNat_safe_zero tn)
+	| 1 :: tn, 0 :: tm => add_bit (sub_aux tn tm) 1
+	| 0 :: tn, 0 :: tm => add_bit (sub_aux tn tm) 0
+	| 1 :: tn, 1 :: tm => add_bit (sub_aux tn tm) 0
+	| 0 :: tn, 1 :: tm => add_bit (sub_borrow tn tm) 1
 	end
 with sub_borrow n m :=
 	match n, m with
-	| [], _ => []
-	| _, [] => dec n
-	| 1 :: tn, 0 :: tm => 0 :: (tn - tm)
-	| 0 :: tn, 0 :: tm => 1 :: (sub_borrow tn tm)
-	| 1 :: tn, 1 :: tm => 1 :: (sub_borrow tn tm)
-	| 0 :: tn, 1 :: tm => 0 :: (sub_borrow tn tm)
-	end where "n - m" := (sub n m) : bin_nat_scope.
+	| [], _ => None
+	| 0 :: tn, [] => add_bit (sub_borrow tn []) 1
+	| 1 :: tn, [] => Some (BinNat_safe_zero tn)
+	| 1 :: tn, 0 :: tm => add_bit (sub_aux tn tm) 0
+	| 0 :: tn, 0 :: tm => add_bit (sub_borrow tn tm) 1
+	| 1 :: tn, 1 :: tm => add_bit (sub_borrow tn tm) 1
+	| 0 :: tn, 1 :: tm => add_bit (sub_borrow tn tm) 0
+	end.
+
+Definition sub n m :=
+	match m with
+	| [] => n
+	| _ =>	match sub_aux n m with
+		| None => []
+		| Some n => n
+		end
+	end.
+
+Notation "n - m" := (sub n m) : bin_nat_scope.

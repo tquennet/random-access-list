@@ -94,7 +94,7 @@ Section RAL_size.
 	Qed.
 
 
-	Lemma RAL_size_non_zero : forall (l : RAL) {n : nat},
+	(*Lemma RAL_size_non_zero : forall (l : RAL) {n : nat},
 		valid_RAL (S n) l -> [] <? size l = true.
 	Proof.
 		intros l n H.
@@ -106,7 +106,7 @@ Section RAL_size.
 	Proof.
 		intros l n H.
 		destruct l as [|bit t]; inversion_clear H; reflexivity.
-	Qed.
+	Qed.*)
 
 End RAL_size.
 
@@ -680,9 +680,6 @@ Definition RAL_update l n a :=
 		end
 	end.
 
-Search or.
-SearchPattern ((?A -> ?B) -> ?A \/ ?B ->?B).
-
 Lemma RAL_update_valid : forall (l : RAL) (n : BinNat) (a : A),
 	valid_RAL 0 l -> valid_RAL 0 (RAL_update l n a).
 Proof.
@@ -691,11 +688,11 @@ Proof.
 	+	apply RAL_touch_head_valid.
 		assumption.
 	+	simpl.
-		apply (RAL_discard_aux_valid _ (b :: n) []) in H.
-		apply proj1 in H.
+		apply (RAL_discard_aux_valid _ (b :: n) []) in H as Hd; [| apply valid_DRAL_Nil].
+		apply proj1 in Hd.
 		{	destruct (RAL_discard_aux l (b :: n)).
 		+	destruct p as [zip r], zip as [c zip].
-			inversion_clear H.
+			inversion_clear Hd.
 			destruct H0 as [Hz Hr], Hz as [Hc Hz].
 			{	assert (valid_RAL 0 (touch_head r a) \/ (touch_head r a) = []).
 			+	{	destruct Hr as [Hr|Hr].
@@ -706,12 +703,13 @@ Proof.
 					rewrite Hr.
 					reflexivity.
 				}
-			+	apply (RAL_undiscard_valid zip c _) in H;
+			+	apply (RAL_undiscard_valid zip c _) in H0;
 					[| split; assumption].
 				destruct RAL_undiscard.
-				destruct H.
+				destruct H0.
 				assumption.
 			}
+		+	assumption.
 		}
 	}
 Qed.
