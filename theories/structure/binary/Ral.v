@@ -6,6 +6,30 @@ Require Import NumRep.utils.Utils.
 Import ListNotations.
 Open Scope bin_nat_scope.
 
+(********************************************************************************)
+(*	RAL (A : Type) == the type of random access list of items of type A.		*)
+(*			VRAL  == a predicate identifying valid RAL,							*)
+(*					 all operations are defined only over valid RAL				*)
+(*		RAL_empty == the empty RAL												*)
+(*		cons a l  == the RAL of element a followed by l							*)
+(*	**	Unary operator:															*)
+(*		size l == element count of l											*)
+(*		RAL_tail l == RAL_empty if l is RAL_empty								*)
+(*					  r if l is cons a r										*)
+(*	**	Indexed operations:														*)
+(*		discard l n  == l without its first n elements							*)
+(*		lookup l n   == an option containing the nth element of l,				*)
+(*						or None if size l < n									*)
+(*		update l n a == if size l < n, l with nth element replaced by a			*)
+(*	** Lemmes:																	*)
+(*			 RAL_size_valid : forall l, VRAL l -> VBN (size l)					*)
+(*			 RAL_cons_valid : forall a l, VRAL l -> VRAL (RAL_cons a l)			*)
+(*			 RAL_tail_valid : forall a l, VRAL l -> VRAL (RAL_tail a l)			*)
+(*		  RAL_discard_valid : forall l n, VRAL l -> VRAL (RAL_discard l n)		*)
+(*		   RAL_update_valid : forall l n a, VRAL l -> VRAL (RAL_update l n a)	*)
+(*			  RAL_cons_tail : forall a l, VRAL l -> RAL_tail (RAL_cons a l) = l	*)
+(********************************************************************************)
+
 Section RAL.
 
 Context {A : Type}.
@@ -28,12 +52,9 @@ Inductive valid_RAL : nat -> RAL -> Prop :=
 		valid_CLBT n clbt -> valid_RAL (S n) ral
 		-> valid_RAL n (RAL_One clbt :: ral).
 
+Definition VRAL := valid_RAL 0.
+
 Definition RAL_empty : RAL := [].
-Definition RAL_is_empty (l : RAL) :=
-	match l with
-	| [] => true
-	| _ => false
-	end.
 
 Local Definition RAL_safe_zero l :=
 	match l with
@@ -41,17 +62,7 @@ Local Definition RAL_safe_zero l :=
 	| _ => RAL_Zero :: l
 	end.
 
-Lemma RAL_safe_zero_empty : forall (l : RAL),
-	RAL_safe_zero l = [] -> l = [].
-Proof.
-	intros l H.
-	{	destruct l.
-	+	reflexivity.
-	+	discriminate.
-	}
-Qed.
-
-Lemma RAL_safe_zero_valid : forall (l : RAL) {n : nat},
+Local Lemma RAL_safe_zero_valid : forall (l : RAL) {n : nat},
 	valid_RAL (S n) l \/ l = [] ->
 	valid_RAL n (RAL_safe_zero l) \/ RAL_safe_zero l = [].
 Proof.
@@ -92,21 +103,6 @@ Section RAL_size.
 			assumption.
 		}
 	Qed.
-
-
-	(*Lemma RAL_size_non_zero : forall (l : RAL) {n : nat},
-		valid_RAL (S n) l -> [] <? size l = true.
-	Proof.
-		intros l n H.
-		destruct l as [| bit t]; inversion_clear H; reflexivity.
-	Qed.
-
-	Lemma RAL_size_non_zero_borrow : forall (l : RAL) {n : nat},
-		valid_RAL (S n) l -> gt_dec_borrow (size l) [] = true.
-	Proof.
-		intros l n H.
-		destruct l as [|bit t]; inversion_clear H; reflexivity.
-	Qed.*)
 
 End RAL_size.
 
@@ -151,7 +147,7 @@ Qed.
 Definition RAL_cons (a : A) (l : RAL) := RAL_cons_aux (singleton a) l.
 
 Lemma RAL_cons_valid : forall (a : A) (l : RAL),
-	valid_RAL 0 l -> valid_RAL 0 (RAL_cons a l).
+	VRAL l -> VRAL (RAL_cons a l).
 Proof.
 	intros a l H.
 	{	apply RAL_cons_aux_valid.
@@ -265,7 +261,7 @@ Definition RAL_tail (l : RAL) : RAL :=
 	let (_, ral) := uncons l in ral.
 
 Lemma RAL_tail_valid : forall (l : RAL),
-	valid_RAL 0 l -> valid_RAL 0 (RAL_tail l).
+	VRAL l -> VRAL (RAL_tail l).
 Proof.
 	intros l H.
 	apply uncons_valid_rhs in H.
@@ -316,7 +312,7 @@ Proof.
 Qed.
 
 Lemma RAL_cons_tail : forall (l : RAL) (a : A),
-	valid_RAL 0 l ->
+	VRAL l ->
 	RAL_tail (RAL_cons a l) = l.
 Proof.
 	intros l a H.
@@ -514,7 +510,7 @@ Proof.
 Qed.
 
 Lemma RAL_discard_valid : forall (l : RAL) (n : BinNat),
-	valid_RAL 0 l -> valid_RAL 0 (RAL_discard l n).
+	VRAL l -> VRAL (RAL_discard l n).
 Proof.
 	intros l n H.
 	{	destruct n.
@@ -681,7 +677,7 @@ Definition RAL_update l n a :=
 	end.
 
 Lemma RAL_update_valid : forall (l : RAL) (n : BinNat) (a : A),
-	valid_RAL 0 l -> valid_RAL 0 (RAL_update l n a).
+	VRAL l -> VRAL (RAL_update l n a).
 Proof.
 	intros l n a H.
 	{	destruct n.
