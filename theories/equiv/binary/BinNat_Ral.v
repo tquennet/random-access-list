@@ -1,3 +1,4 @@
+Require Import FunInd.
 Require Import numerical.binary.BinNat.
 Require Import structure.binary.Ral structure.tree.Clbt.
 
@@ -29,41 +30,32 @@ Proof.
 	apply RAL_cons_aux_inc.
 Qed.
 
-Local Lemma RAL_tail_aux_dec : forall (l : @RAL A) {n : nat},
-	valid_RAL n l -> size (snd (Ral.uncons l)) = dec (size l).
+Lemma RAL_size_canonical : forall (l : @RAL A),
+	CRAL l -> CBN (size l).
 Proof.
-	intro l.
-	{	induction l as [|bit t HR]; intros n Hl;
-		[| destruct bit]; inversion_clear Hl.
-	+	reflexivity.
-	+	specialize (HR (S n)).
-		apply HR in H as Hs.
-		apply Ral.uncons_valid_lhs in H.
-		destruct H as [clbt Hc], Hc as [Hc Heq].
-		simpl.
-		destruct (Ral.uncons t).
-		simpl in *.
-		rewrite <- Heq.
-		destruct clbt as [|clbtl clbtr]; inversion_clear Hc.
-		simpl.
-		rewrite Hs.
-		reflexivity.
-	+	reflexivity.
-	+	simpl.
-		{	destruct t.
-		+	inversion_clear H0.
-		+	simpl.
-			destruct r; reflexivity.
-		}
+	intros l H.
+	{	induction H.
+	+ apply CBN_0.
+	+	rewrite RAL_cons_inc.
+		apply CBN_inc.
+		assumption. 
 	}
 Qed.
 
 Theorem RAL_tail_dec : forall (l : @RAL A),
-	valid_RAL 0 l -> size (RAL_tail l) = dec (size l).
+	CRAL l -> size (RAL_tail l) = dec (size l).
 Proof.
-	intros l H.
-	apply (RAL_tail_aux_dec _ H).
+	intros l Hl.
+	{	destruct Hl.
+	+	reflexivity.
+	+	rewrite RAL_cons_tail, RAL_cons_inc; [|assumption].
+		apply RAL_size_canonical in Hl.
+		rewrite BinNat_inc_dec; [|assumption].
+		reflexivity.
+	}
 Qed.
+
+(* modifiés dans la branche binary-discard
 
 Definition is_some {T : Type} (o : option T) :=
 	match o with
@@ -173,5 +165,6 @@ Proof.
 		}
 	}
 Qed.
+*)
 
 End BinNatRal.
