@@ -57,28 +57,7 @@ Proof.
 Qed.
 
 Lemma CLBT_right_valid : forall {n : nat} (t : CLBT),
-	valid_CLBT (S n) t -> valid_CLBT n (CLBT_left t).
-Proof.
-	intros n t H.
-	inversion_clear H.
-	assumption.
-Qed.
-
-Definition CLBT_break (t : CLBT) : (CLBT * CLBT) :=
-	match t with
-	| Node l r => (l, r)
-	| _ => (t, t)
-	end.
-
-Lemma CLBT_break_fst_valid : forall {n : nat} (t : CLBT),
-	valid_CLBT (S n) t -> valid_CLBT n (fst (CLBT_break t)).
-Proof.
-	intros n t H.
-	inversion_clear H.
-	assumption.
-Qed.
-Lemma CLBT_break_snd_valid : forall {n : nat} (t : CLBT),
-	valid_CLBT (S n) t -> valid_CLBT n (snd (CLBT_break t)).
+	valid_CLBT (S n) t -> valid_CLBT n (CLBT_right t).
 Proof.
 	intros n t H.
 	inversion_clear H.

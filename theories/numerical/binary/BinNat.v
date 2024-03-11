@@ -1,4 +1,4 @@
-Require Import Lists.List.
+Require Import Lists.List FunInd.
 Require Import Init.Nat.
 Import ListNotations.
 
@@ -13,7 +13,7 @@ Open Scope bin_nat_scope.
 (*		BN_zero  == the BN representing 0										*)
 (*		BN_inc n == the successor of n											*)
 (*	**	Unary operator:															*)
-(*		BinNat_to_nat n == n as native coq nat									*)
+(*		BN_to_nat n == n as native coq nat									*)
 (*			   BN_dec n == the predecessor of n									*)
 (*	**	Binary operators:														*)
 (*		 sub n m, n - m == the difference between n and m						*)
@@ -29,33 +29,12 @@ Definition BinNat := list Bit.
 Notation "0" := Zero.
 Notation "1" := One.
 
-Fixpoint BinNat_to_nat n : nat :=
+Fixpoint BN_to_nat n : nat :=
 	match n with
 	| [] => O
-	| 0 :: t => 2 * (BinNat_to_nat t)
-	| 1 :: t => S (2 * BinNat_to_nat t)
+	| 0 :: t => 2 * (BN_to_nat t)
+	| 1 :: t => S (2 * BN_to_nat t)
 	end.
-
-Inductive valid_BinNat : nat -> BinNat -> Prop :=
-	| valid_BinNat_Nil : valid_BinNat 0 []
-	| valid_BinNat_Top : forall {n : nat}, valid_BinNat n [1]
-	| valid_BinNat_Cons : forall {n : nat} (l : BinNat) (b : Bit),
-		valid_BinNat (S n) l -> valid_BinNat n (b :: l).
-
-Definition VBN := valid_BinNat 0.
-
-Local Lemma valid_BinNat_S : forall (n : BinNat) (b : Bit) (d : nat),
-	valid_BinNat d (b :: n) -> valid_BinNat (S d) (b :: n).
-Proof.
-	intros n.
-	{	induction n as [|b2 tn HR]; intros b d H; inversion_clear H.
-	+	apply valid_BinNat_Top.
-	+	inversion_clear H0.
-	+	apply valid_BinNat_Cons.
-		apply HR.
-		assumption.
-	}
-Qed.
 
 Local Definition BN_safe_zero n :=
 	match n with
@@ -73,7 +52,7 @@ Local Definition BN_add_bit o b :=
 	| Some n => Some (BN_safe_bit b n)
 	end.
 
-Local Lemma BN_safe_bit_valid : forall (b : Bit) (n : BinNat) {d : nat},
+(*Local Lemma BN_safe_bit_valid : forall (b : Bit) (n : BinNat) {d : nat},
 	valid_BinNat (S d) n \/ n = [] ->
 	valid_BinNat d (BN_safe_bit b n) \/ BN_safe_bit b n = [].
 Proof.
@@ -95,7 +74,7 @@ Definition BN_zero : BinNat := [].
 Lemma BN_zero_valid : VBN BN_zero.
 Proof.
 	apply valid_BinNat_Nil.
-Qed.
+Qed.*)
 
 Fixpoint BN_inc n :=
 	match n with
@@ -104,18 +83,61 @@ Fixpoint BN_inc n :=
 	| 1 :: t => 0 :: BN_inc t
 	end.
 
-Lemma BN_inc_valid : forall (n : BinNat),
-	VBN n -> VBN (BN_inc n).
+
+Functional Scheme BN_inc_ind := Induction for BN_inc Sort Prop.
+
+Lemma BN_inc_S : forall (n : BinNat),
+	BN_to_nat (BN_inc n) = S (BN_to_nat n).
+Proof.
+	intro n.
+	{	induction n as [| b tn HR]; [|destruct b]; simpl.
+	+	reflexivity.
+	+	reflexivity.
+	+	rewrite !PeanoNat.Nat.add_0_r, HR.
+		rewrite plus_Sn_m, <- plus_n_Sm.
+		reflexivity.
+	}
+Qed.
+
+Inductive CBN : BinNat -> Prop :=
+	| CBN_0 : CBN []
+	| CBN_inc : forall (n : BinNat),
+		CBN n -> CBN (BN_inc n).
+
+Local Lemma BN_inc_non_empty : forall (n : BinNat),
+	exists b tn, b :: tn = BN_inc n.
 Proof.
 	intros n.
-	assert (Haux : forall {d : nat}, valid_BinNat d n -> valid_BinNat d (BN_inc n));
-		[| apply Haux].
-	{	induction n as [|b tn HR]; [|destruct b]; intros d H; inversion_clear H.
-	+	apply valid_BinNat_Top.
-	+	apply valid_BinNat_Cons.
-		assumption.
-	+	apply valid_BinNat_Cons, valid_BinNat_Top.
-	+	apply valid_BinNat_Cons, HR.
+	{	destruct n as [|b tn]; [|destruct b].
+	+	exists 1, []; reflexivity.
+	+	exists 1, tn; reflexivity.
+	+	exists 0, (BN_inc tn); reflexivity.
+	}
+Qed.
+
+Local Lemma BN_inc_last : forall (n : BinNat),
+	last n 1 = 1 -> last (BN_inc n) 1 = 1.
+Proof.
+	intro n.
+	{	functional induction (BN_inc n); intro H.
+		+	reflexivity.
+		+	destruct t; [discriminate|].
+			exact H.
+		+	decompose record (BN_inc_non_empty t).
+			assert (Ht : last t 1 = 1) by (destruct t; [reflexivity | assumption]).
+			apply IHl in Ht.
+			rewrite <- H1 in*.
+			exact Ht.
+		}
+Qed.
+
+Lemma CBN_last : forall (n : BinNat),
+	CBN n -> last n 1 = 1.
+Proof.
+	intros n H.
+	{	induction H as [| n HCBN HR].
+	+ reflexivity.
+	+ apply BN_inc_last.
 		assumption.
 	}
 Qed.
@@ -123,12 +145,10 @@ Qed.
 Fixpoint BN_dec n :=
 	match n with
 	| [] => []
-	| [1] => []
 	| 0 :: t => BN_safe_bit 1 (BN_dec t)
 	| 1 :: t => BN_safe_bit 0 t
 	end.
-
-Lemma BN_dec_valid : forall (n : BinNat),
+(*Lemma BN_dec_valid : forall (n : BinNat),
 	VBN n -> VBN (BN_dec n).
 Proof.
 	intros n.
@@ -156,23 +176,22 @@ Proof.
 			apply valid_BinNat_Nil.
 		}
 	}
-Qed.
+Qed.*)
 
-Lemma BN_inc_dec : forall (n : BinNat) {d : nat},
-	VBN n -> BN_dec (BN_inc n) = n.
+Lemma BN_inc_dec : forall (n : BinNat),
+	CBN n -> BN_dec (BN_inc n) = n.
 Proof.
-	intro n.
-	assert (Haux : forall {d : nat}, valid_BinNat d n -> BN_dec (BN_inc n) = n);
-		[| intro H; apply (Haux O)].
-	{	induction n as [|b tn HR]; intros d H;
-			try destruct b; inversion_clear H.
-	+	reflexivity.
-	+	destruct tn; inversion_clear H0; reflexivity.
-	+	reflexivity.
+	intros n Hn.
+	apply CBN_last in Hn.
+	{	functional induction (BN_inc n).
+	+ reflexivity.
+	+	destruct t; [discriminate|].
+		reflexivity.
 	+	simpl.
-		f_equal.
-		apply (HR (S d)).
-		assumption.
+		destruct t; [reflexivity|].
+		apply IHl in Hn.
+		rewrite Hn.
+		reflexivity.
 	}
 Qed.
 
@@ -207,4 +226,3 @@ Definition BN_sub n m :=
 	end.
 	
 Notation "n - m" := (BN_sub n m) : bin_nat_scope.
-

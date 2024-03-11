@@ -1,4 +1,5 @@
-Require Import Program Arith Lists.List.
+Require Import Arith Lists.List FunInd.
+Require Import NumRep.utils.Utils.
 Require Import NumRep.structure.tree.Clbt.
 Require Import NumRep.numerical.binary.BinNat.
 Require Import NumRep.utils.Utils.
@@ -43,9 +44,7 @@ Variant RAL_BIT :=
 Definition RAL := list RAL_BIT.
 
 Inductive valid_RAL : nat -> RAL -> Prop := 
-	| valid_RAL_Nil : valid_RAL 0 []
-	| valid_RAL_Top : forall {n : nat} (clbt : CLBT),
-		valid_CLBT n clbt -> valid_RAL n [RAL_One clbt]
+	| valid_RAL_Nil : forall {n : nat}, valid_RAL n []
 	| valid_RAL_Zero : forall {n : nat} (ral : RAL),
 		valid_RAL (S n) ral -> valid_RAL n (RAL_Zero :: ral)
 	| valid_RAL_One : forall {n : nat} (ral : RAL) (clbt : CLBT),
@@ -62,7 +61,7 @@ Local Definition RAL_safe_zero l :=
 	| _ => RAL_Zero :: l
 	end.
 
-Local Lemma RAL_safe_zero_valid : forall (l : RAL) {n : nat},
+(*Local Lemma RAL_safe_zero_valid : forall (l : RAL) {n : nat},
 	valid_RAL (S n) l \/ l = [] ->
 	valid_RAL n (RAL_safe_zero l) \/ RAL_safe_zero l = [].
 Proof.
@@ -77,34 +76,29 @@ Proof.
 	+	right.
 		reflexivity.
 	}
-Qed.
+Qed.*)
 
 Section RAL_size.
+Local Definition RAL_ends_One := ends_pred (fun b => exists c, b = RAL_One c).
 
-	Fixpoint size (l : RAL) :=
-		match l with
-		| [] => nil
-		| RAL_Zero :: t => 0 :: (size t)
-		| RAL_One _ :: t => 1 :: (size t)
-		end.
-
-	Lemma RAL_size_valid : forall (l : RAL) {n : nat},
-		valid_RAL n l -> valid_BinNat n (size l).
-	Proof.
-		intro l.
-		{	induction l as [| bit t HR]; intros n H; inversion_clear H.
-		+	apply valid_BinNat_Nil.
-		+	apply valid_BinNat_Top.
-		+	apply valid_BinNat_Cons.
-			apply HR.
-			assumption.
-		+	apply valid_BinNat_Cons.
-			apply HR.
-			assumption.
-		}
-	Qed.
+Local Lemma RAL_ends_One_Zero : ~RAL_ends_One [RAL_Zero].
+Proof.
+	intro H.
+	inversion_clear H.
+	destruct H0.
+	discriminate.
+Qed.
 
 End RAL_size.
+Local Lemma RAL_ends_cons : forall (l : RAL) (bit : RAL_BIT),
+	RAL_ends_One (bit :: l) -> RAL_ends_One l.
+Proof.
+	intros l bit H.
+	{	destruct l.
+	+	apply OP_None.
+	+	exact H.
+	}
+Qed.
 
 Section RAL_cons.
 
@@ -112,35 +106,25 @@ Local Fixpoint RAL_cons_aux (clbt : CLBT) (l : RAL) : RAL :=
 	match l with
 	| [] => [RAL_One clbt]
 	| RAL_Zero :: t => RAL_One clbt :: t
-	| RAL_One e :: t => RAL_Zero :: RAL_cons_aux (CLBT_merge e clbt) t
+	| RAL_One e :: t => RAL_Zero :: RAL_cons_aux (Node e clbt) t
 	end.
+
+Functional Scheme RAL_cons_aux_ind := Induction for RAL_cons_aux Sort Prop.
 
 Lemma RAL_cons_aux_valid : forall  (l : RAL) (clbt : CLBT) {n : nat},
 	valid_RAL n l -> valid_CLBT n clbt -> 
 	valid_RAL n (RAL_cons_aux clbt l).
 Proof.
-	intros l.
-	{	induction l as [| bit t HR]; intros clbt n Hl Hclbt.
-	+	{	apply valid_RAL_Top.
-			exact Hclbt.
-		}
-	+	{	destruct bit.
-		+	{	destruct t; inversion_clear Hl.
-			+	apply valid_RAL_Top.
-				exact Hclbt.
-			+	apply valid_RAL_One; assumption.
-			}
-		+	simpl.
-			apply valid_RAL_Zero.
-			{	inversion_clear Hl.
-			+	apply valid_RAL_Top.
-				apply CLBT_merge_valid; assumption.
-			+	{	apply HR.
-				+	assumption.
-				+	apply CLBT_merge_valid; assumption.
-				}
-			}
-		}
+	intros clbt l.
+	{	functional induction (RAL_cons_aux l clbt); intros n Hl Hclbt.
+	+ apply valid_RAL_One, valid_RAL_Nil.
+		assumption.
+	+	inversion_clear Hl.
+		apply valid_RAL_One; assumption.
+	+ inversion_clear Hl.
+		apply valid_RAL_Zero.
+		apply IHr; [assumption|].
+		apply valid_Node; assumption.
 	}
 Qed.
 
@@ -155,7 +139,71 @@ Proof.
 	+	apply singleton_valid.
 	}
 Qed.
+
+Local Lemma RAL_cons_aux_non_empty : forall (l : RAL) (clbt : CLBT),
+	exists b tl, b :: tl = RAL_cons_aux clbt l.
+Proof.
+	intros l clbt.
+	{	destruct l as [|b tl]; [|destruct b].
+	+	exists (RAL_One clbt), []; reflexivity.
+	+	exists (RAL_One clbt), tl; reflexivity.
+	+	exists RAL_Zero, (RAL_cons_aux (Node c clbt) tl).
+		reflexivity.
+	}
+Qed.
+
+Local Lemma RAL_cons_aux_ends : forall (l : RAL) (clbt : CLBT),
+	 RAL_ends_One l -> RAL_ends_One (RAL_cons_aux clbt l).
+Proof.
+	intros l clbt.
+	{	functional induction (RAL_cons_aux clbt l); intro H.
+		+	apply OP_Some.
+			exists clbt; reflexivity.
+		+	{	destruct t.
+			+ apply OP_Some.
+				exists clbt; reflexivity.
+			+	unfold RAL_cons.
+				exact H.
+			}
+		+	decompose record (RAL_cons_aux_non_empty t (Node e0 clbt)).
+			apply RAL_ends_cons in H.
+			apply IHr in H.
+			rewrite <- H1 in*.
+			exact H.
+		}
+Qed.
+
+Local Lemma RAL_cons_ends : forall (l : RAL) (a : A),
+	RAL_ends_One l -> RAL_ends_One (RAL_cons a l).
+Proof.
+	intros l a H.
+	apply RAL_cons_aux_ends.
+	assumption.
+Qed.
 End RAL_cons.
+
+Inductive CRAL : RAL -> Prop :=
+	| CRAL_Empty : CRAL RAL_empty
+	| CRAL_Cons : forall (l : RAL) (a : A),
+		CRAL l -> CRAL (RAL_cons a l).
+
+Lemma CRAL_ends : forall (l : RAL),
+	CRAL l -> RAL_ends_One l.
+Proof.
+	intros n H.
+	{	induction H as [| n HCBN HR].
+	+ apply OP_None.
+	+ apply RAL_cons_ends.
+		assumption.
+	}
+Qed.
+
+Fixpoint size (l : RAL) :=
+	match l with
+	| [] => nil
+	| RAL_Zero :: t => 0 :: (size t)
+	| RAL_One _ :: t => 1 :: (size t)
+	end.
 
 Fixpoint RAL_head (l : RAL) : option A :=
 match l with
@@ -174,154 +222,92 @@ Local Fixpoint uncons (l : RAL) : option (CLBT) * RAL :=
 	| RAL_Zero :: t => let (clbt, r) := uncons t in
 		match clbt with
 		| None => (None, RAL_Zero :: r)
-		| Some clbt => let (tl, tr) := CLBT_break clbt in
-			(Some tr, RAL_One tl :: r)
+		| Some clbt => (Some (CLBT_right clbt), RAL_One (CLBT_left clbt) :: r)
 		end
 	end.
+	
+Functional Scheme uncons_ind := Induction for uncons Sort Prop.
 
 Local Lemma uncons_valid_lhs : forall (l : RAL) {n : nat},
-	valid_RAL (S n) l ->
-	exists clbt, valid_CLBT (S n) clbt /\ Some clbt = fst (uncons l).
+	valid_RAL n l -> option_predicate (valid_CLBT n) (fst (uncons l)).
 Proof.
 	intro l.
-	{	induction l as [|bit t HR]; intros n Hl; inversion_clear Hl.
-	+	exists clbt.
-		{	split.
-		+	assumption.
-		+	reflexivity.
-		}
-	+	apply HR in H.
-		destruct H as [clbt].
-		destruct H as [Hclbt Heq].
-		destruct clbt as [| clbtl clbtr]; inversion_clear Hclbt.
-		exists clbtr.
-		{	split.
-		+	assumption.
-		+	simpl.
-			destruct (uncons t).
-			simpl in Heq.
-			rewrite <- Heq.
-			reflexivity.
-		}
-	+	exists clbt.
-		{	split.
-		+	assumption.
-		+	simpl.
-			destruct t; reflexivity.
-		}
+	{	functional induction (uncons l); intros n Hl.
+	+ apply OP_None.
+	+	apply OP_Some.
+		apply CLBT_right_valid.
+		inversion_clear Hl.
+		apply IHp in H.
+		rewrite e1 in H.
+		inversion_clear H.
+		assumption.
+	+	apply OP_None.
+	+	apply OP_Some.
+		inversion_clear Hl.
+		assumption.
+	+	apply OP_Some.
+		inversion_clear Hl.
+		assumption.
 	}
-
 Qed.
 
 Local Lemma uncons_valid_rhs : forall (l : RAL) {n : nat},
-	valid_RAL n l ->
-	valid_RAL n (snd (uncons l)) \/ exists clbt, l = [RAL_One clbt].
+	valid_RAL n l -> valid_RAL n (snd (uncons l)).
 Proof.
 	intro l.
-	{	induction l as [|bit t HR]; intros n H.
-	+	left.
-		inversion_clear H.
-		apply valid_RAL_Nil.
-	+	{	destruct bit; simpl; inversion_clear H.
-		+	left.
-			specialize (HR (S n) H0).
-			apply uncons_valid_lhs in H0.
-			{	destruct HR.
-			+	destruct H0 as [clbt H0], H0 as [Hclbt Heq].
-				destruct (uncons t).
-				simpl in Heq, H.
-				rewrite <- Heq.
-				destruct clbt as [|clbtl clbtr]; inversion_clear Hclbt.
-				apply valid_RAL_One; assumption.
-			+	destruct H as [clbtTop Hct].
-				destruct H0 as [clbtLhs Hcl].
-				destruct Hcl as [Hclbt Heq].
-				rewrite Hct in *.
-				simpl in *.
-				inversion Heq as [He].
-				rewrite <- He.
-				destruct clbtLhs; inversion_clear Hclbt.
-				apply valid_RAL_Top.
-				assumption.
-			}
-		+	right.
-			exists c.
-			reflexivity.
-		+	left.
-			{	destruct t.
-			+	inversion H1.
-			+	apply valid_RAL_Zero.
-				assumption.
-			}
-		}
+	{	functional induction (uncons l); intros n Hl; inversion_clear Hl.
+	+	apply valid_RAL_Nil.
+	+	apply uncons_valid_lhs in H as Hc.
+		apply IHp in H.
+		rewrite e1 in Hc, H.
+		inversion_clear Hc.
+		apply CLBT_left_valid in H0.
+		apply valid_RAL_One; assumption.
+	+ apply valid_RAL_Zero.
+		apply IHp in H.
+		rewrite e1 in H.
+		assumption.
+	+ apply valid_RAL_Nil.
+	+ apply valid_RAL_Zero.
+		assumption.
 	}
 Qed.
 
-Definition RAL_tail (l : RAL) : RAL :=
-	let (_, ral) := uncons l in ral.
+Definition RAL_tail (l : RAL) : RAL := snd (uncons l).
 
 Lemma RAL_tail_valid : forall (l : RAL),
 	VRAL l -> VRAL (RAL_tail l).
 Proof.
 	intros l H.
-	apply uncons_valid_rhs in H.
-	{	destruct H.
-	+	assumption.
-	+	inversion H as [c Hc].
-		rewrite Hc.
-		apply valid_RAL_Nil.
-	}
+	apply uncons_valid_rhs.
+	assumption.
 Qed.
 
-Lemma RAL_cons_tail_aux : forall (l : RAL) (clbt : CLBT) {n : nat},
-	valid_RAL n l -> valid_CLBT n clbt ->
-	uncons (RAL_cons_aux clbt l) = (Some clbt, l).
+Lemma RAL_cons_uncons : forall (l : RAL) (clbt : CLBT),
+	CRAL l -> uncons (RAL_cons_aux clbt l) = (Some clbt, l).
 Proof.
-	intros l.
-	{	induction l as [| bit t HR]; try destruct bit;
-			intros clbt n Hl Hclbt.
+	intros l clbt Hcl.
+	apply CRAL_ends in Hcl.
+	{	functional induction (RAL_cons_aux clbt l); intros .
 	+	reflexivity.
-	+	{	destruct t; inversion_clear Hl.
-		+	inversion_clear H.
-		+	reflexivity.
-		}
+	+	destruct t; [apply RAL_ends_One_Zero in Hcl; contradiction|].
+		reflexivity.
 	+	simpl.
-		{	destruct t; inversion_clear Hl.
-		+	reflexivity.
-		+	reflexivity.
-		+	pose proof (Hmerge := CLBT_merge_valid _ _ H Hclbt).
-			pose proof (Huncons := RAL_cons_aux_valid _ _ H0 Hmerge).
-			apply uncons_valid_lhs in Huncons.
-			specialize (HR _ _ H0 Hmerge).
-			destruct Huncons as [c0 Huncons], Huncons as [Hc0 Hc0eq].
-			destruct (uncons _).
-			simpl in Hc0eq.
-			rewrite <- Hc0eq.
-			destruct c0 as [|c0l c0r]; inversion_clear Hc0.
-			simpl.
-			apply pair_equal_spec in HR; destruct HR as [Ho Hrt].
-			rewrite <- Hc0eq in Ho.
-			inversion_clear Ho.
-			{	apply injective_projections; simpl.
-			+	reflexivity.
-			+	f_equal.
-				assumption.
-			}
-		}
+		apply RAL_ends_cons in Hcl.
+		apply IHr in Hcl.
+		rewrite Hcl.
+		reflexivity.
 	}
 Qed.
 
 Lemma RAL_cons_tail : forall (l : RAL) (a : A),
-	VRAL l ->
-	RAL_tail (RAL_cons a l) = l.
+	CRAL l -> RAL_tail (RAL_cons a l) = l.
 Proof.
 	intros l a H.
-	pose proof (HR := RAL_cons_tail_aux _ _ H (singleton_valid a)).
+	pose proof (HR := RAL_cons_uncons _ (singleton a) H).	
 	unfold RAL_tail, RAL_cons.
-	destruct (uncons _).
-	apply pair_equal_spec in HR.
-	destruct HR.
-	assumption.
+	rewrite HR.
+	reflexivity.
 Qed.
 
 End RAL_tail.
