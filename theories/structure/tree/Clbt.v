@@ -16,11 +16,6 @@ Inductive valid_CLBT : nat -> CLBT -> Prop :=
 		valid_CLBT n l -> valid_CLBT n r ->
 		valid_CLBT (S n) (Node l r).
 
-Inductive valid_option_CLBT : nat -> option CLBT -> Prop :=
-	| valid_CLBT_None : forall {n : nat}, valid_option_CLBT n None
-	| valid_CLBT_Some : forall {n : nat} (clbt : CLBT),
-		valid_CLBT n clbt -> valid_option_CLBT n (Some clbt).
-
 Definition singleton (a : A) : CLBT := Leaf a.
 Lemma singleton_valid : forall a : A, valid_CLBT 0 (singleton a).
 Proof.
@@ -42,21 +37,28 @@ Fixpoint CLBT_head (t : CLBT) : A :=
 	| Node _ r => CLBT_head r
 	end.
 
-Definition CLBT_break (t : CLBT) : (CLBT * CLBT) :=
+Definition CLBT_right (t : CLBT) : CLBT :=
 	match t with
-	| Node l r => (l, r)
-	| _ => (t, t)
+	| Node l r => r
+	| _ => t
 	end.
 
-Lemma CLBT_break_fst_valid : forall {n : nat} (t : CLBT),
-	valid_CLBT (S n) t -> valid_CLBT n (fst (CLBT_break t)).
+Lemma CLBT_right_valid : forall {n : nat} (t : CLBT),
+	valid_CLBT (S n) t -> valid_CLBT n (CLBT_right t).
 Proof.
 	intros n t H.
 	inversion_clear H.
 	assumption.
 Qed.
-Lemma CLBT_break_snd_valid : forall {n : nat} (t : CLBT),
-	valid_CLBT (S n) t -> valid_CLBT n (snd (CLBT_break t)).
+
+Definition CLBT_left (t : CLBT) : CLBT :=
+	match t with
+	| Node l r => l
+	| _ => t
+	end.
+
+Lemma CLBT_left_valid : forall {n : nat} (t : CLBT),
+	valid_CLBT (S n) t -> valid_CLBT n (CLBT_left t).
 Proof.
 	intros n t H.
 	inversion_clear H.
