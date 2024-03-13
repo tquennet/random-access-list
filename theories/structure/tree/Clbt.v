@@ -6,7 +6,7 @@ Section CLBT.
 
 Context {A : Type}.
 
-Inductive CLBT : Type :=
+Inductive CLBT :=
 	| Leaf : A -> CLBT
 	| Node : CLBT -> CLBT -> CLBT.
 
@@ -112,17 +112,13 @@ Qed.
 
 Section DCLBT.
 
-Context {R : Type}.
-Context (valid_R : nat -> R -> Prop).
-
 Inductive DCLBT :=
-	| DCLBT_Root : R -> DCLBT
+	| DCLBT_Root : DCLBT
 	| DCLBT_Left : DCLBT -> CLBT -> DCLBT
 	| DCLBT_Right : CLBT -> DCLBT -> DCLBT.
 
 Inductive valid_DCLBT : nat -> DCLBT -> Prop :=
-	| valid_DCLBT_Root : forall (n : nat) (r : R),
-		valid_R n r -> valid_DCLBT n (DCLBT_Root r)
+	| valid_DCLBT_Root : forall (n : nat), valid_DCLBT n DCLBT_Root
 	| valid_DCLBT_Left : forall (n : nat) (dt : DCLBT) (t : CLBT),
 		valid_DCLBT (S n) dt -> valid_CLBT n t ->
 		valid_DCLBT n (DCLBT_Left dt t)
@@ -136,14 +132,14 @@ Definition CLBT_zip := prod CLBT DCLBT.
 Definition valid_CLBT_zip (n : nat) '(t, dt) :=
 	valid_CLBT n t /\ valid_DCLBT n dt.
 
-Definition DCLBT_rotate_left '(t, dt) :=
+Definition CLBT_down_left '(t, dt) :=
 	match t with
 	| Leaf _ => (t, dt)
 	| Node l r => (l, DCLBT_Left dt r)
 	end.
 
-Lemma DCLBT_rotate_left_valid : forall (zip : CLBT_zip) {n : nat},
-	valid_CLBT_zip (S n) zip -> valid_CLBT_zip n (DCLBT_rotate_left zip).
+Lemma CLBT_down_left_valid : forall (zip : CLBT_zip) {n : nat},
+	valid_CLBT_zip (S n) zip -> valid_CLBT_zip n (CLBT_down_left zip).
 Proof.
 	intros zip n H.
 	destruct zip as [t dt].
@@ -155,14 +151,14 @@ Proof.
 	}
 Qed.
 
-Definition DCLBT_rotate_right '(t, dt) :=
+Definition CLBT_down_right '(t, dt) :=
 	match t with
 	| Leaf _ => (t, dt)
 	| Node l r => (r, DCLBT_Right l dt)
 	end.
 
-Lemma DCLBT_rotate_right_valid : forall (zip : CLBT_zip) {n : nat},
-	valid_CLBT_zip (S n) zip -> valid_CLBT_zip n (DCLBT_rotate_right zip).
+Lemma CLBT_down_right_valid : forall (zip : CLBT_zip) {n : nat},
+	valid_CLBT_zip (S n) zip -> valid_CLBT_zip n (CLBT_down_right zip).
 Proof.
 	intros zip n H.
 	destruct zip as [t dt].
@@ -173,6 +169,13 @@ Proof.
 	+	apply valid_DCLBT_Right; assumption.
 	}
 Qed.
+
+Definition CLBT_up '(t, dt) :=
+	match dt with
+	| DCLBT_Root => (t, dt)
+	| DCLBT_Left dt r => (Node t r, dt)
+	| DCLBT_Right l dt => (Node l t, dt)
+	end.
 
 End DCLBT.
 

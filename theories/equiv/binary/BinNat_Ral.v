@@ -171,6 +171,5 @@ Proof.
 		}
 	}
 Qed.
-*)
 
 End BinNatRal.
