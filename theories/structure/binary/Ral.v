@@ -4,6 +4,7 @@ Require Import NumRep.structure.tree.Clbt.
 Require Import NumRep.numerical.binary.BinNat.
 Require Import NumRep.utils.Utils.
 
+Open Scope type_scope.
 Import ListNotations.
 Open Scope bin_nat_scope.
 
@@ -48,7 +49,7 @@ Variant valid_RAL_BIT : nat -> RAL_BIT -> Prop :=
 	| valid_RAL_BIT_One : forall {n : nat} (clbt : CLBT),
 		valid_CLBT n clbt -> valid_RAL_BIT n (RAL_One clbt).
 
-Inductive valid_RAL : nat -> RAL -> Prop := 
+Inductive valid_RAL : nat -> RAL -> Prop :=
 	| valid_RAL_Nil : forall {n : nat}, valid_RAL n []
 	| valid_RAL_Cons : forall {n : nat} (bit : RAL_BIT) (ral : RAL),
 		valid_RAL_BIT n bit -> valid_RAL (S n) ral -> valid_RAL n (bit :: ral).
@@ -246,7 +247,7 @@ Local Fixpoint uncons (l : RAL) : option (CLBT) * RAL :=
 		| Some clbt => (Some (CLBT_right clbt), RAL_One (CLBT_left clbt) :: r)
 		end
 	end.
-	
+
 Functional Scheme uncons_ind := Induction for uncons Sort Prop.
 
 Local Lemma uncons_valid_lhs : forall (l : RAL) {n : nat},
@@ -327,7 +328,7 @@ Lemma RAL_cons_tail : forall (l : RAL) (a : A),
 	CRAL l -> RAL_tail (RAL_cons a l) = l.
 Proof.
 	intros l a H.
-	pose proof (HR := RAL_cons_uncons _ (singleton a) H).	
+	pose proof (HR := RAL_cons_uncons _ (singleton a) H).
 	unfold RAL_tail, RAL_cons.
 	rewrite HR.
 	reflexivity.
@@ -335,58 +336,58 @@ Qed.
 
 End RAL_tail.
 
-Section RAL_discard.
+Section RAL_open.
 
-Local Definition RAL_discard_zip := prod (@CLBT_zip A) RAL.
+Definition DRAL := RAL.
+Definition RAL_zip := DRAL * option (@CLBT_zip A) * RAL.
 
-Local Definition RAL_discard_split (del : RAL_BIT) (o : option (RAL_discard_zip * RAL)) (b : Bit)
-		:	option (RAL_discard_zip * RAL) :=
-	match o, b with
-	| None, _ => None
-	| Some (czip, dels, l), 0
-		=> Some (CLBT_down_left czip, del :: dels, RAL_safe_zero l)
-	| Some ((clbt, _) as czip, dels, l), 1
-		=> Some (CLBT_down_right czip, del :: dels, RAL_One (CLBT_left clbt) :: l)
+(*
+	Soit el et en les bits déja passés de l et n,
+	on a :
+		dral = rev el
+		dbn = rev (en - (RAL_size el)) pour RAL_open
+		dbn = rev (en ++ [1] - (RAL_size el)) pour RAL_open_borrow
+*)
+
+Fixpoint RAL_open (l : RAL) (n : BN) (dbn : DBN) (dral : DRAL) : RAL_zip :=
+	match l, n with
+	| [], _ => (dral, None, [])
+	| RAL_Zero as bit :: tl, [] => RAL_open tl [] (0 :: dbn) (bit :: dral)
+	| RAL_One t as bit :: tl, [] => (dral, Some (CLBT_open (CLBT_make_zip t) dbn), tl)
+	| RAL_Zero as bit :: tl, 0 :: tn => RAL_open tl tn (0 :: dbn) (bit :: dral)
+	| RAL_One _ as bit :: tl, 1 :: tn => RAL_open tl tn (0 :: dbn) (bit :: dral)
+	| RAL_Zero as bit :: tl, 1 :: tn => RAL_open tl tn (1 :: dbn) (bit :: dral)
+	| RAL_One _ as bit :: tl, 0 :: tn => RAL_open_borrow tl tn (1 :: dbn) (bit :: dral)
+	end
+with RAL_open_borrow (l : RAL) (n : BN) (dbn : DBN) (dral : DRAL) : RAL_zip :=
+	match l, n with
+	| [], _ => (dral, None, [])
+	| _, [] => (dral, None, l)
+	| RAL_One t :: tl, [1] => (dral, Some (CLBT_open (CLBT_make_zip t) dbn), tl)
+	| RAL_Zero as bit :: tl, 0 :: tn => RAL_open tl tn (1 :: dbn) (bit :: dral)
+	| RAL_One _ as bit :: tl, 1 :: tn => RAL_open tl tn (1 :: dbn) (bit :: dral)
+	| RAL_Zero as bit :: tl, 1 :: tn => RAL_open_borrow tl tn (0 :: dbn) (bit :: dral)
+	| RAL_One _ as bit :: tl, 0 :: tn => RAL_open tl tn (0 :: dbn) (bit :: dral)
 	end.
 
-Local Fixpoint RAL_discard_aux (l : RAL) (n : BinNat)
-		: option (RAL_discard_zip * RAL) :=
-	match l, n with
-	| [], _ => None
-	| _, [] => None
-	| RAL_One clbt :: tl, [1] => Some (clbt, DCLBT_Root, [], RAL_safe_zero tl)
-	| RAL_One _ as bit :: tl, 1 :: tn | RAL_Zero as bit :: tl, 0 :: tn
-		=> RAL_discard_split bit (RAL_discard_aux tl tn) 0
-	| RAL_One _ as bit :: tl, 0 :: tn
-		=> RAL_discard_split bit (RAL_discard_aux tl tn) 1
-	| RAL_Zero as bit :: tl, 1 :: tn
-		=> RAL_discard_split bit (RAL_discard_borrow tl tn) 1
-	end
-with RAL_discard_borrow (l : RAL) (n : BinNat)
-		: option (RAL_discard_zip * RAL) :=
-	match l, n with
-	| [], _ => None
-	| RAL_One clbt :: tl, [] => Some (clbt, DCLBT_Root, [], RAL_safe_zero tl)
-	| RAL_Zero as bit :: tl, []
-		=> RAL_discard_split bit (RAL_discard_borrow tl []) 1
-	| RAL_One _ as bit :: tl, 1 :: tn | RAL_Zero as bit :: tl, 0 :: tn
-		=> RAL_discard_split bit (RAL_discard_borrow tl tn) 1
-	| RAL_One _ as bit :: tl, 0 :: tn
-		=> RAL_discard_split bit (RAL_discard_aux tl tn) 0
-	| RAL_Zero as bit :: tl, 1 :: tn
-		=> RAL_discard_split bit (RAL_discard_borrow tl tn) 0
+End RAL_open.
+
+Section RAL_discard.
+
+Local Fixpoint DCLBT_to_RAL (l : RAL) (dt : DCLBT) :=
+	match dt with
+	| DCLBT_Root => l
+	| DCLBT_Left dt _ => RAL_Zero :: DCLBT_to_RAL l dt
+	| DCLBT_Right t dt => RAL_One t :: DCLBT_to_RAL l dt
 	end.
 
 Definition RAL_discard l n :=
-	match n with
-	| [] => l 
-	| _ => match RAL_discard_aux l n with
-		| None => []
-		| Some (_, l) => l
-		end
+	match RAL_open l n [] [] with
+	| (l, Some (t, dt), _) => RAL_cons_aux t (DCLBT_to_RAL l dt)
+	| _ => []
 	end.
 
-Definition valid_discard_option (d : nat)
+(*Definition valid_discard_option (d : nat)
 		: option (RAL_discard_zip * RAL) -> Prop :=
 	option_predicate (fun '(zip, dels, l) => valid_CLBT_zip d zip
 		/\ valid_RAL d dels /\ valid_RAL d l).
@@ -491,94 +492,31 @@ Proof.
 		+	apply valid_RAL_Nil.
 		}
 	}
-Qed.
-
-Local Fixpoint RAL_undiscard (clbt : CLBT) (dt : DCLBT) (l : RAL) (dels : RAL)
-		: RAL :=
-	match dt, l, dels with
-	| DCLBT_Root, _, _ => RAL_One clbt :: (tail l)
-	| DCLBT_Left dt t, _, del :: td
-		=> del :: (RAL_undiscard (Node clbt t) dt (tail l) td)
-	| DCLBT_Right t dt, RAL_Zero :: _, del :: td | DCLBT_Right t dt, [], del :: td
-		=> del :: (RAL_undiscard (Node t clbt) dt (tail l) td)
-	| DCLBT_Right _ dt, RAL_One t :: _, del :: td
-		=> del :: (RAL_undiscard (Node t clbt) dt (tail l) td)
-	| _, _, [] => []
-	end.
-
-Functional Scheme RAL_undiscard_ind := Induction for RAL_undiscard Sort Prop.
-
-Lemma RAL_undiscard_valid : forall (clbt : CLBT) (dt : DCLBT) (l : RAL) (dels : RAL)
-	{n : nat},
-	valid_RAL n l -> valid_RAL n dels ->
-	valid_CLBT n clbt -> valid_DCLBT n dt ->
-	valid_RAL n (RAL_undiscard clbt dt l dels).
-Proof.
-	intros clbt dt l dels.
-	{	functional induction (RAL_undiscard clbt dt l dels);
-			intros n Hl Hdels Hclbt Hdt; inversion_clear Hdt.
-	+	apply valid_RAL_tail in Hl.
-		apply valid_RAL_one; assumption.
-	+	apply valid_RAL_Nil.
-	+	apply valid_RAL_tail in Hl as Htl.
-		inversion_clear Hdels.
-		apply valid_RAL_Cons; [assumption|].
-		pose proof (Hn := valid_Node _ _ Hclbt H0).
-		apply IHr; assumption.
-	+	apply valid_RAL_Nil.
-	+	inversion_clear Hdels.
-		apply valid_RAL_Cons; [assumption|].
-		pose proof (Htl := @valid_RAL_Nil (S n)).
-		pose proof (Hn := valid_Node _ _ H Hclbt).
-		apply IHr; assumption.
-	+	apply valid_RAL_Nil.
-	+	inversion_clear Hdels.
-		inversion_clear Hl.
-		apply valid_RAL_Cons; [assumption|].
-		pose proof (Hn := valid_Node _ _ H Hclbt).
-		apply IHr; assumption.
-	+	apply valid_RAL_Nil.
-	+	inversion_clear Hdels.
-		inversion_clear Hl; inversion_clear H3.
-		apply valid_RAL_Cons; [assumption|].
-		pose proof (Hn := valid_Node _ _ H5 Hclbt).
-		apply IHr; assumption.
-	}
-Qed.
+Qed.*)
 
 End RAL_discard.
 
-Definition RAL_lookup l n := RAL_head (RAL_discard l n).
+Definition RAL_lookup l n :=
+	match RAL_open l n [] [] with
+	| (_, Some (t, _), _) => Some (CLBT_head t)
+	| _ => None
+	end.
 
 Section RAL_update.
 
-Local Definition touch_head l a :=
-	match l with
-	| [] => []
-	| _ => RAL_cons a (RAL_tail l)
+Fixpoint RAL_plug (l : RAL) (dl : DRAL) :=
+	match dl with
+	| [] => l
+	| b :: tdl => RAL_plug (b :: l) tdl
 	end.
-
-Lemma RAL_touch_head_valid : forall (l : RAL) (a : A),
-	VRAL l -> VRAL (touch_head l a).
-Proof.
-	intros l a H.
-	{	destruct l.
-	+	assumption.
-	+	apply RAL_cons_valid, RAL_tail_valid.
-		assumption.
-	}
-Qed.
 
 Definition RAL_update l n a :=
-	match n with
-	| [] => touch_head l a
-	| _ => match RAL_discard_aux l n with
-		| None => l
-		| Some (t, dt, dels, r) => RAL_undiscard t dt (touch_head r a) dels
-		end
+	match RAL_open l n [] [] with
+	| (l, Some (_, dt), dl) => RAL_plug (RAL_One (CLBT_plug (singleton a) dt) :: l) dl
+	| _ => l
 	end.
 
-Lemma RAL_update_valid : forall (l : RAL) (n : BinNat) (a : A),
+(*Lemma RAL_update_valid : forall (l : RAL) (n : BinNat) (a : A),
 	VRAL l -> VRAL (RAL_update l n a).
 Proof.
 	intros l n a H.
@@ -597,7 +535,7 @@ Proof.
 		+	assumption.
 		}
 	}
-Qed.
+Qed.*)
 
 End RAL_update.
 

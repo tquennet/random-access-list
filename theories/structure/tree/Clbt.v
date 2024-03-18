@@ -2,6 +2,8 @@ Require Import Program Arith Lists.List.
 Require Import NumRep.numerical.binary.BinNat.
 Import ListNotations.
 
+Open Scope type_scope.
+
 Section CLBT.
 
 Context {A : Type}.
@@ -64,7 +66,7 @@ Proof.
 	assumption.
 Qed.
 
-Fixpoint CLBT_lookup (t : CLBT) (n : list Bit) : A :=
+(*Fixpoint CLBT_lookup (t : CLBT) (n : list Bit) : A :=
 	match t with
 	| Leaf a => a
 	| Node l r =>
@@ -108,7 +110,7 @@ Proof.
 			}
 		}
 	}
-Qed.
+Qed.*)
 
 Section DCLBT.
 
@@ -126,11 +128,18 @@ Inductive valid_DCLBT : nat -> DCLBT -> Prop :=
 		valid_CLBT n t -> valid_DCLBT (S n) dt ->
 		valid_DCLBT n (DCLBT_Right t dt).
 
-Definition CLBT_zip := prod CLBT DCLBT.
-
+Definition CLBT_zip := CLBT * DCLBT.
+Definition CLBT_make_zip t : CLBT_zip := (t, DCLBT_Root).
 
 Definition valid_CLBT_zip (n : nat) '(t, dt) :=
 	valid_CLBT n t /\ valid_DCLBT n dt.
+
+Fixpoint DCLBT_trace dt :=
+	match dt with
+	| DCLBT_Root => []
+	| DCLBT_Left dt _ => 1 :: (DCLBT_trace dt)
+	| DCLBT_Right _ dt => 0 :: (DCLBT_trace dt)
+	end.
 
 Definition CLBT_down_left '(t, dt) :=
 	match t with
@@ -175,6 +184,20 @@ Definition CLBT_up '(t, dt) :=
 	| DCLBT_Root => (t, dt)
 	| DCLBT_Left dt r => (Node t r, dt)
 	| DCLBT_Right l dt => (Node l t, dt)
+	end.
+
+Fixpoint CLBT_plug t dt : CLBT :=
+	match dt with
+	| DCLBT_Root => t
+	| DCLBT_Left dt r => CLBT_plug (Node t r) dt
+	| DCLBT_Right l dt => CLBT_plug (Node l t) dt
+	end.
+
+Fixpoint CLBT_open zip dbn :=
+	match dbn with
+	| [] => zip
+	| 0 :: tdbn => CLBT_open (CLBT_down_right zip) tdbn
+	| 1 :: tdbn => CLBT_open (CLBT_down_left zip) tdbn
 	end.
 
 End DCLBT.
