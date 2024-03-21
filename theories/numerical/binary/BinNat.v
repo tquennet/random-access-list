@@ -37,34 +37,6 @@ Fixpoint BN_to_nat n : nat :=
 	| 1 :: t => S (2 * BN_to_nat t)
 	end.
 
-Local Definition BN_safe_zero n :=
-	match n with
-	| [] => []
-	| _ => 0 :: n
-	end.
-Local Definition BN_safe_bit b n :=
-	match b with
-	| 0 => BN_safe_zero n
-	| 1 => 1 :: n
-	end.
-
-(*Local Lemma BN_safe_bit_valid : forall (b : Bit) (n : BinNat) {d : nat},
-	valid_BinNat (S d) n \/ n = [] ->
-	valid_BinNat d (BN_safe_bit b n) \/ BN_safe_bit b n = [].
-Proof.
-	intros b n d H.
-	{	destruct H; inversion_clear H.
-	+	left.
-		destruct b; apply valid_BinNat_Cons, valid_BinNat_Top.
-	+	left.
-		destruct b; repeat apply valid_BinNat_Cons; assumption.
-	+	{	destruct b.
-		+	right; reflexivity.
-		+	left; apply valid_BinNat_Top.
-		}
-	}
-Qed.*)
-
 Definition BN_zero : BN := [].
 
 Fixpoint BN_inc n :=
@@ -217,6 +189,22 @@ Proof.
 	}
 Qed.
 
+Fixpoint BN_trim n :=
+	match n with
+	| [] => []
+	| 1 :: tl => 1 :: (BN_trim tl)
+	| 0 :: tl => match (BN_trim tl) with
+		| [] => []
+		| r => 0 :: r
+		end
+	end.
+
+Functional Scheme BN_trim_ind := Induction for BN_trim Sort Prop.
+
+Lemma trim_canonical : forall l, CBN (BN_trim l).
+Proof.
+Admitted.
+
 Lemma CBN_cons : forall b n,
 	CBN (b :: n) -> CBN n.
 Proof.
@@ -249,8 +237,9 @@ Qed.*)
 Fixpoint BN_dec n :=
 	match n with
 	| [] => []
-	| 0 :: t => BN_safe_bit 1 (BN_dec t)
-	| 1 :: t => BN_safe_bit 0 t
+	| [1] => []
+	| 0 :: t => 1 :: (BN_dec t)
+	| 1 :: t => 0 :: t
 	end.
 
 Functional Scheme BN_dec_ind := Induction for BN_dec Sort Prop.

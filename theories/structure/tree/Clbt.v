@@ -66,52 +66,6 @@ Proof.
 	assumption.
 Qed.
 
-(*Fixpoint CLBT_lookup (t : CLBT) (n : list Bit) : A :=
-	match t with
-	| Leaf a => a
-	| Node l r =>
-		match n with
-		| [] => CLBT_lookup r []
-		| 0 :: tn => CLBT_lookup r tn
-		| 1 :: tn => CLBT_lookup l tn
-		end
-	end.
-
-Fixpoint CLBT_update (t : CLBT) (n : list Bit) (a : A) : CLBT :=
-	match t with
-	| Leaf a => Leaf a
-	| Node l r =>
-		match n with
-		| [] => Node l (CLBT_update r [] a)
-		| 0 :: tn => Node l (CLBT_update r tn a)
-		| 1 :: tn => Node r (CLBT_update l tn a)
-		end
-	end.
-
-Lemma CLBT_update_valid : forall (t : CLBT) (n : list Bit) (a : A),
-	valid_CLBT (length n) t -> valid_CLBT (length n) (CLBT_update t n a).
-Proof.
-	intro t.
-	{	induction t as [b | l HR1 r HR2]; intros n a H.
-	+	inversion_clear H.
-		apply valid_Leaf.
-	+	{	destruct n as [|bit t]; inversion_clear H.
-		+	{	destruct bit.
-			+	{	apply valid_Node.
-				+	assumption.
-				+	apply HR2.
-					assumption.
-				}
-			+	{	apply valid_Node.
-				+	assumption.
-				+	apply HR1.
-					assumption.
-				}
-			}
-		}
-	}
-Qed.*)
-
 Section DCLBT.
 
 Inductive DCLBT :=

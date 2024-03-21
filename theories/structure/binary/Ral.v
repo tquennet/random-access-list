@@ -83,7 +83,7 @@ Definition VRAL := valid_RAL 0.
 
 Definition RAL_empty : RAL := [].
 
-Local Definition RAL_safe_zero l :=
+(*Local Definition RAL_safe_zero l :=
 	match l with
 	| [] => []
 	| _ => RAL_Zero :: l
@@ -98,29 +98,7 @@ Proof.
 	+	apply valid_RAL_zero.
 		assumption.
 	}
-Qed.
-
-Section RAL_size.
-Local Definition RAL_ends_One := ends_pred (fun b => exists c, b = RAL_One c).
-
-Local Lemma RAL_ends_One_Zero : ~RAL_ends_One [RAL_Zero].
-Proof.
-	intro H.
-	inversion_clear H.
-	destruct H0.
-	discriminate.
-Qed.
-
-End RAL_size.
-Local Lemma RAL_ends_cons : forall (l : RAL) (bit : RAL_BIT),
-	RAL_ends_One (bit :: l) -> RAL_ends_One l.
-Proof.
-	intros l bit H.
-	{	destruct l.
-	+	apply OP_None.
-	+	exact H.
-	}
-Qed.
+Qed.*)
 
 Section RAL_cons.
 
@@ -134,7 +112,7 @@ Local Fixpoint RAL_cons_aux (clbt : CLBT) (l : RAL) : RAL :=
 Functional Scheme RAL_cons_aux_ind := Induction for RAL_cons_aux Sort Prop.
 
 Lemma RAL_cons_aux_valid : forall  (l : RAL) (clbt : CLBT) {n : nat},
-	valid_RAL n l -> valid_CLBT n clbt -> 
+	valid_RAL n l -> valid_CLBT n clbt ->
 	valid_RAL n (RAL_cons_aux clbt l).
 Proof.
 	intros clbt l.
@@ -173,59 +151,97 @@ Proof.
 		reflexivity.
 	}
 Qed.
-
-Local Lemma RAL_cons_aux_ends : forall (l : RAL) (clbt : CLBT),
-	 RAL_ends_One l -> RAL_ends_One (RAL_cons_aux clbt l).
-Proof.
-	intros l clbt.
-	{	functional induction (RAL_cons_aux clbt l); intro H.
-		+	apply OP_Some.
-			exists clbt; reflexivity.
-		+	{	destruct t.
-			+ apply OP_Some.
-				exists clbt; reflexivity.
-			+	unfold RAL_cons.
-				exact H.
-			}
-		+	decompose record (RAL_cons_aux_non_empty t (Node e0 clbt)).
-			apply RAL_ends_cons in H.
-			apply IHr in H.
-			rewrite <- H1 in*.
-			exact H.
-		}
-Qed.
-
-Local Lemma RAL_cons_ends : forall (l : RAL) (a : A),
-	RAL_ends_One l -> RAL_ends_One (RAL_cons a l).
-Proof.
-	intros l a H.
-	apply RAL_cons_aux_ends.
-	assumption.
-Qed.
 End RAL_cons.
+
+Section RAL_size.
+
+Fixpoint size (l : RAL) :=
+	match l with
+	| [] => []
+	| RAL_Zero :: t => 0 :: (size t)
+	| RAL_One _ :: t => 1 :: (size t)
+	end.
+
+Local Lemma RAL_cons_aux_inc : forall (l : RAL) (clbt : CLBT),
+	size (RAL_cons_aux clbt l) = BN_inc (size l).
+Proof.
+	intro l.
+	{	induction l as [| bit t HR]; try destruct bit.
+	+	reflexivity.
+	+	reflexivity.
+	+	intro clbt.
+		simpl.
+		f_equal.
+		apply HR.
+	}
+Qed.
+
+Theorem RAL_cons_inc : forall (l : RAL) (a : A),
+	size (RAL_cons a l) = BN_inc (size l).
+Proof.
+	intros l a.
+	apply RAL_cons_aux_inc.
+Qed.
+
+End RAL_size.
+
+Section RAL_canonical.
+
+Inductive CRAL_aux (n : nat) : RAL -> Prop :=
+	| CRAL_aux_Empty : CRAL_aux n []
+	| CRAL_aux_Cons : forall (l : RAL) (t : CLBT),
+	  CRAL_aux n l -> valid_CLBT n t -> CRAL_aux n (RAL_cons_aux t l).
 
 Inductive CRAL : RAL -> Prop :=
 	| CRAL_Empty : CRAL RAL_empty
 	| CRAL_Cons : forall (l : RAL) (a : A),
-		CRAL l -> CRAL (RAL_cons a l).
+		  CRAL l -> CRAL (RAL_cons a l).
 
-Lemma CRAL_ends : forall (l : RAL),
-	CRAL l -> RAL_ends_One l.
+Lemma CRAL_aux_equiv : forall l,
+	  CRAL l <-> CRAL_aux 0 l.
 Proof.
-	intros n H.
-	{	induction H as [| n HCBN HR].
-	+ apply OP_None.
-	+ apply RAL_cons_ends.
-		assumption.
+	intro l.
+	{	split; intro H; induction H.
+	+	apply CRAL_aux_Empty.
+	+	apply CRAL_aux_Cons; [assumption| apply singleton_valid].
+	+	apply CRAL_Empty.
+	+	inversion_clear H0.
+		apply CRAL_Cons; assumption.
 	}
 Qed.
 
-Fixpoint size (l : RAL) :=
+Lemma CRAL_aux_One : forall n t, valid_CLBT n t -> CRAL_aux n [RAL_One t].
+Proof.
+	intros n t H.
+	apply (CRAL_aux_Cons n []); [apply CRAL_aux_Empty| assumption].
+Qed.
+
+
+Definition CRAL_struct b l := CBN_struct b (size l).
+Definition CRAL_st l := VRAL l /\ CRAL_struct true l = true.
+
+Lemma CRAL_struct_equiv : forall (l : RAL),
+	CRAL l <-> CRAL_st l.
+Proof.
+Admitted.
+
+Fixpoint RAL_trim l :=
 	match l with
-	| [] => nil
-	| RAL_Zero :: t => 0 :: (size t)
-	| RAL_One _ :: t => 1 :: (size t)
+	| [] => []
+	| RAL_One clbt :: tl => RAL_One clbt :: (RAL_trim tl)
+	| RAL_Zero :: tl => match (RAL_trim tl) with
+		| [] => []
+		| r => RAL_Zero :: r
+		end
 	end.
+
+Functional Scheme RAL_trim_ind := Induction for RAL_trim Sort Prop.
+
+Lemma trim_canonical : forall l, VRAL l -> CRAL (RAL_trim l).
+Proof.
+Admitted.
+
+End RAL_canonical.
 
 Fixpoint RAL_head (l : RAL) : option A :=
 match l with
@@ -238,7 +254,7 @@ Section RAL_tail.
 
 Local Fixpoint uncons (l : RAL) : option (CLBT) * RAL :=
 	match l with
-	| [] => (None, [])		(* unreachable if valid_RAL (S n) l *)
+	| [] => (None, [])
 	| [RAL_One clbt] => (Some clbt, [])
 	| RAL_One clbt :: t => (Some clbt, RAL_Zero :: t)
 	| RAL_Zero :: t => let (clbt, r) := uncons t in
@@ -311,13 +327,13 @@ Lemma RAL_cons_uncons : forall (l : RAL) (clbt : CLBT),
 	CRAL l -> uncons (RAL_cons_aux clbt l) = (Some clbt, l).
 Proof.
 	intros l clbt Hcl.
-	apply CRAL_ends in Hcl.
+	apply CRAL_struct_equiv in Hcl.
+	destruct Hcl as [_ Hcl].
 	{	functional induction (RAL_cons_aux clbt l); intros .
 	+	reflexivity.
-	+	destruct t; [apply RAL_ends_One_Zero in Hcl; contradiction|].
+	+	destruct t; [compute in Hcl; discriminate|].
 		reflexivity.
 	+	simpl.
-		apply RAL_ends_cons in Hcl.
 		apply IHr in Hcl.
 		rewrite Hcl.
 		reflexivity.
@@ -383,7 +399,7 @@ Local Fixpoint DCLBT_to_RAL (l : RAL) (dt : DCLBT) :=
 
 Definition RAL_discard l n :=
 	match RAL_open l n [] [] with
-	| (l, Some (t, dt), _) => RAL_cons_aux t (DCLBT_to_RAL l dt)
+	| (l, Some (t, dt), _) => RAL_trim (RAL_cons_aux t (DCLBT_to_RAL l dt))
 	| _ => []
 	end.
 
