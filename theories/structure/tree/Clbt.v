@@ -73,20 +73,28 @@ Inductive DCLBT :=
 	| DCLBT_Left : DCLBT -> CLBT -> DCLBT
 	| DCLBT_Right : CLBT -> DCLBT -> DCLBT.
 
-Inductive valid_DCLBT : nat -> DCLBT -> Prop :=
-	| valid_DCLBT_Root : forall (n : nat), valid_DCLBT n DCLBT_Root
-	| valid_DCLBT_Left : forall (n : nat) (dt : DCLBT) (t : CLBT),
-		valid_DCLBT (S n) dt -> valid_CLBT n t ->
-		valid_DCLBT n (DCLBT_Left dt t)
-	| valid_DCLBT_Right : forall (n : nat) (dt : DCLBT) (t : CLBT),
-		valid_CLBT n t -> valid_DCLBT (S n) dt ->
-		valid_DCLBT n (DCLBT_Right t dt).
+Inductive valid_DCLBT : nat -> nat -> DCLBT -> Prop :=
+	| valid_DCLBT_Root : forall (n : nat), valid_DCLBT n n DCLBT_Root
+	| valid_DCLBT_Left : forall (d n : nat) (dt : DCLBT) (t : CLBT),
+		valid_DCLBT d (S n) dt -> valid_CLBT n t ->
+		valid_DCLBT d n (DCLBT_Left dt t)
+	| valid_DCLBT_Right : forall (d n : nat) (dt : DCLBT) (t : CLBT),
+		valid_CLBT n t -> valid_DCLBT d (S n) dt ->
+		valid_DCLBT d n (DCLBT_Right t dt).
 
 Definition CLBT_zip := CLBT * DCLBT.
 Definition CLBT_make_zip t : CLBT_zip := (t, DCLBT_Root).
 
-Definition valid_CLBT_zip (n : nat) '(t, dt) :=
-	valid_CLBT n t /\ valid_DCLBT n dt.
+Definition valid_CLBT_zip (d n : nat) '(t, dt) :=
+	valid_CLBT n t /\ valid_DCLBT d n dt.
+
+Lemma CLBT_make_zip_valid : forall t n,
+		valid_CLBT n t -> valid_CLBT_zip n n (CLBT_make_zip t).
+Proof.
+	intros t n H.
+	split; [assumption| apply valid_DCLBT_Root].
+Qed.
+
 
 Fixpoint DCLBT_trace dt :=
 	match dt with
@@ -101,10 +109,10 @@ Definition CLBT_down_left '(t, dt) :=
 	| Node l r => (l, DCLBT_Left dt r)
 	end.
 
-Lemma CLBT_down_left_valid : forall (zip : CLBT_zip) {n : nat},
-	valid_CLBT_zip (S n) zip -> valid_CLBT_zip n (CLBT_down_left zip).
+Lemma CLBT_down_left_valid : forall (zip : CLBT_zip) {d n : nat},
+	valid_CLBT_zip d (S n) zip -> valid_CLBT_zip d n (CLBT_down_left zip).
 Proof.
-	intros zip n H.
+	intros zip d n H.
 	destruct zip as [t dt].
 	destruct H as [Ht Hdt].
 	inversion_clear Ht.
@@ -120,10 +128,10 @@ Definition CLBT_down_right '(t, dt) :=
 	| Node l r => (r, DCLBT_Right l dt)
 	end.
 
-Lemma CLBT_down_right_valid : forall (zip : CLBT_zip) {n : nat},
-	valid_CLBT_zip (S n) zip -> valid_CLBT_zip n (CLBT_down_right zip).
+Lemma CLBT_down_right_valid : forall (zip : CLBT_zip) {d n : nat},
+	valid_CLBT_zip d (S n) zip -> valid_CLBT_zip d n (CLBT_down_right zip).
 Proof.
-	intros zip n H.
+	intros zip d n H.
 	destruct zip as [t dt].
 	destruct H as [Ht Hdt].
 	inversion_clear Ht.
@@ -147,12 +155,43 @@ Fixpoint CLBT_plug t dt : CLBT :=
 	| DCLBT_Right l dt => CLBT_plug (Node l t) dt
 	end.
 
-Fixpoint CLBT_open zip dbn :=
-	match dbn with
+Lemma CLBT_plug_valid : forall dt t n d,
+		valid_CLBT d t -> valid_DCLBT n d dt ->
+		valid_CLBT n (CLBT_plug t dt).
+Proof.
+	intro dt.
+	{	induction dt as [| dt HR r | l dt HR]; intros t n d Ht Hdt;
+			inversion_clear Hdt; simpl in *.
+	+	assumption.
+	+	apply (HR _ _ (S d)); [|assumption].
+		apply valid_Node; assumption.
+	+	apply (HR _ _ (S d)); [|assumption].
+		apply valid_Node; assumption.
+	}
+Qed.
+
+Fixpoint CLBT_open zip dn :=
+	match dn with
 	| [] => zip
-	| 0 :: tdbn => CLBT_open (CLBT_down_right zip) tdbn
-	| 1 :: tdbn => CLBT_open (CLBT_down_left zip) tdbn
+	| 0 :: tdn => CLBT_open (CLBT_down_right zip) tdn
+	| 1 :: tdn => CLBT_open (CLBT_down_left zip) tdn
 	end.
+
+Lemma CLBT_open_valid : forall dn zip d,
+		valid_CLBT_zip d (length dn) zip ->
+		valid_CLBT_zip d 0 (CLBT_open zip dn).
+Proof.
+	intro dn.
+	{	induction dn as [|b tdn HR]; intros zip d H; [|destruct b]; simpl.
+	+	assumption.
+	+	apply HR.
+		apply CLBT_down_right_valid.
+		assumption.
+	+	apply HR.
+		apply CLBT_down_left_valid.
+		assumption.
+	}
+Qed.
 
 End DCLBT.
 
