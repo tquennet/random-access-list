@@ -676,4 +676,62 @@ Qed.
 
 End RAL_update.
 
+Section RAL_create.
+
+Fixpoint RAL_create_aux n t :=
+	match n with
+	| [] => []
+	| 0 :: tn => RAL_Zero :: RAL_create_aux tn (Node t t)
+	| 1 :: tn => RAL_One t :: RAL_create_aux tn (Node t t)
+	end.
+
+Functional Scheme RAL_create_ind := Induction for RAL_create_aux Sort Prop.
+
+Definition RAL_create n a := RAL_create_aux n (singleton a).
+
+Lemma RAL_create_size : forall n a, size (RAL_create n a) = n.
+Proof.
+	intros n a.
+	unfold RAL_create.
+	{	functional induction (RAL_create_aux n (singleton a)) using RAL_create_ind; simpl in *.
+	+	reflexivity.
+	+	rewrite IHl.
+		reflexivity.
+	+	rewrite IHl.
+		reflexivity.
+	}
+Qed.
+
+Lemma RAL_create_valid : forall n a, VRAL (RAL_create n a).
+Proof.
+	intros n a.
+	set (t := singleton a).
+	enough (forall d, valid_CLBT d t -> valid_RAL d (RAL_create_aux n (singleton a)));
+		[apply H, singleton_valid|].
+	{	functional induction (RAL_create_aux n (singleton a)) using RAL_create_ind;
+			intros d Ht; simpl in *.
+	+	apply valid_RAL_Nil.
+	+	apply valid_RAL_zero.
+		apply IHl.
+		apply valid_Node; assumption.
+	+	apply valid_RAL_one; [assumption|].
+		apply IHl.
+		apply valid_Node; assumption.
+	}
+Qed.
+
+Lemma RAL_create_canonical : forall n a, CBN n -> CRAL (RAL_create n a).
+Proof.
+	intros n a Hn.
+	apply CRAL_struct_equiv.
+	apply BinNat.CBN_struct_equiv in Hn.
+	{	split.
+	+	apply RAL_create_valid.
+	+	rewrite RAL_create_size.
+		assumption.
+	}
+Qed.
+
+End RAL_create.
+
 End RAL.
