@@ -293,98 +293,31 @@ Proof.
 	}
 Qed.
 
-Fixpoint BN_sub n m :=
+Fixpoint BN_sub_aux n m acc :=
 	match n, m with
-	| [], _ => []
-	| _, [] => n
+	| [], _ => None
+	| 0 :: tn, [] => BN_sub_aux tn [] (0 :: acc)
+	| 1 :: tn, [] => Some (rev_append acc (0 :: tn))
 	| 0 :: tn, 0 :: tm | 1 :: tn, 1 :: tm
-		=> 0 :: (BN_sub tn tm)
-	| 0 :: tn, 1 :: tm => 1 :: (BN_sub_borrow tn tm)
-	| 1 :: tn, 0 :: tm => 1 :: (BN_sub tn tm)
+		=> BN_sub_aux tn tm (0 :: acc)
+	| 0 :: tn, 1 :: tm => BN_sub_aux tn tm (1 :: acc)
+	| 1 :: tn, 0 :: tm => BN_sub_borrow tn tm (1 :: acc)
 	end
-with BN_sub_borrow n m :=
+with BN_sub_borrow n m acc :=
 	match n, m with
-	| [], _ => []
-	| _, [] => BN_dec n
+	| [], _ => None
+	| _, [] => None
+	| 1 :: tn , [1] => Some (rev_append acc (0 :: tn))
 	| 0 :: tn, 0 :: tm | 1 :: tn, 1 :: tm
-		=> 1 :: (BN_sub_borrow tn tm)
-	| 0 :: tn, 1 :: tm => 0 :: (BN_sub_borrow tn tm)
-	| 1 :: tn, 0 :: tm => 1 :: (BN_sub tn tm)
+		=> BN_sub_borrow tn tm (1 :: acc)
+	| 1 :: tn, 0 :: tm => BN_sub_borrow tn tm (0 :: acc)
+	| 0 :: tn, 1 :: tm => BN_sub_aux tn tm (0 :: acc)
+	end.
+
+Definition BN_sub n m :=
+	match BN_sub_aux n m [] with
+	| Some r => BN_trim (BN_inc r)
+	| None => []
 	end.
 
 Notation "n - m" := (BN_sub n m) : bin_nat_scope.
-
-(*Lemma BN_sub_aux_n_O : forall n,
-	BN_sub_aux n [] = n.
-Proof.
-	intros n.
-	destruct n as [|b tn]; [|destruct b];
-		reflexivity.
-Qed.
-
-Lemma BN_sub_borrow_n_O : forall n,
-	BN_sub_borrow n [] = BN_dec n.
-Proof.
-	intros n.
-	{	functional induction (BN_dec n).
-	+	reflexivity.
-	+	destruct t; [reflexivity|].
-		simpl in *.
-		rewrite IHl.
-		reflexivity.
-	+	reflexivity.
-	}
-Qed.
-
-Lemma BN_sub_aux_borrow : forall (n m : BN),
-	m <? n = true -> CBN n ->
-	BN_sub_aux n m = BN_inc (BN_sub_borrow n m).
-Proof.
-	intros n.
-	{	induction n as [|bn tn HRn]; [|destruct bn]; intros m Hlt Hn; simpl.
-	+	apply BN_ltb_n_O in Hlt.
-		contradiction.
-	+	{	destruct m as [| bm tm]; [|destruct bm].
-		+	rewrite BN_sub_borrow_n_O.
-			apply BN_ltb_n_m_as_inc in Hlt; [|assumption].
-			apply CBN_0_tn in Hn as Hm.
-			destruct Hm as [m Hm], Hm as [Hm Hmtn].
-			rewrite <- Hmtn, BN_inc_dec; [|assumption].
-			reflexivity.
-		+	apply BN_ltb_cons in Hlt.
-			apply CBN_cons in Hn.
-			apply HRn in Hlt; [|assumption].
-			rewrite Hlt.
-			pose proof (Hinc := BN_inc_non_empty (BN_sub_borrow tn tm)).
-			destruct Hinc as [b Hinc], Hinc as [tbn Hinc].
-			simpl.
-			rewrite <- !Hinc.
-			reflexivity.
-		+	destruct (BN_sub_borrow tn tm); reflexivity.
-		}
-	+	{	destruct m as [| bm tm]; [|destruct bm].
-		+	destruct tn; reflexivity.
-		+	destruct (BN_sub_aux tn tm); reflexivity.
-		+	apply BN_ltb_cons in Hlt.
-			apply CBN_cons in Hn.
-			{	destruct tm.
-			+	destruct tn; [discriminate|].
-				rewrite BN_sub_borrow_n_O.
-				unfold BN_inc; fold BN_inc.
-				rewrite <- BN_dec_inc; [|assumption].
-				reflexivity.
-			+	apply HRn in Hlt; [|assumption].
-				rewrite Hlt.
-				pose proof (Hinc := BN_inc_non_empty (BN_sub_borrow tn (b :: tm))).
-				destruct Hinc as [bn Hinc], Hinc as [tbn Hinc].
-				simpl.
-				rewrite <- !Hinc.
-				reflexivity.
-			}
-		}
-	}
-Qed.
-
-
-*)
-

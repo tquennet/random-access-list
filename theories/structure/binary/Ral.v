@@ -456,13 +456,25 @@ Fixpoint RAL_open (l : RAL) (n : BN) (dbn : DBN) (dral : DRAL) : RAL_zip :=
 with RAL_open_borrow (l : RAL) (n : BN) (dbn : DBN) (dral : DRAL) : RAL_zip :=
 	match l, n with
 	| [], _ => (dral, None, [])
-	| _ :: tl, [] => (dral, None, tl)
+	| _ as bit :: tl, [] => RAL_open_borrow tl [] (0 :: dbn) (bit :: dral)
 	| RAL_One t :: tl, [1] => (dral, Some (CLBT_open (CLBT_make_zip t) dbn), tl)
-	| RAL_Zero as bit :: tl, 0 :: tn => RAL_open tl tn (1 :: dbn) (bit :: dral)
-	| RAL_One _ as bit :: tl, 1 :: tn => RAL_open tl tn (1 :: dbn) (bit :: dral)
-	| RAL_Zero as bit :: tl, 1 :: tn => RAL_open_borrow tl tn (0 :: dbn) (bit :: dral)
-	| RAL_One _ as bit :: tl, 0 :: tn => RAL_open tl tn (0 :: dbn) (bit :: dral)
+	| RAL_Zero as bit :: tl, 0 :: tn | RAL_One _ as bit :: tl, 1 :: tn
+		=> RAL_open_borrow tl tn (1 :: dbn) (bit :: dral)
+	| RAL_One _ as bit :: tl, 0 :: tn => RAL_open_borrow tl tn (0 :: dbn) (bit :: dral)
+	| RAL_Zero as bit :: tl, 1 :: tn => RAL_open tl tn (0 :: dbn) (bit :: dral)
 	end.
+
+Lemma RAL_open_borrow_O : forall l dbn dl, exists rl rdl,
+		RAL_open_borrow l [] dbn dl = (rdl, None, rl).
+Proof.
+	intro l.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intros dbn dl.
+	+	exists [], dl.
+		reflexivity.
+	+	apply HR.
+	+	apply HR.
+	}
+Qed.
 
 Lemma RAL_open_valid : forall l n dbn dl d rdl rcz rl,
 		(rdl, rcz, rl) = RAL_open l n dbn dl \/ (rdl, rcz, rl) = RAL_open_borrow l n dbn dl ->
@@ -492,21 +504,21 @@ Proof.
 	+	apply (valid_DRAL_Cons _ RAL_Zero) in Hdl; [|assumption].
 		specialize (Hsdbn 0).
 		apply (HR _ _ _ (S d) _ _ _ (or_introl Hr)); assumption.
-	+	inversion_clear Hr.
-		exists d.
-		split; [|split]; [assumption|assumption|apply OP_None].
-	+	apply (valid_DRAL_Cons _ RAL_Zero) in Hdl; [|assumption].
-		specialize (Hsdbn 0).
-		apply (HR _ _ _ (S d) _ _ _ (or_introl Hr)); assumption.
-	+	apply (valid_DRAL_Cons _ RAL_Zero) in Hdl; [|assumption].
-		specialize (Hsdbn 1).
-		apply (HR _ _ _ (S d) _ _ _ (or_introl Hr)); assumption.
-	+	apply (valid_DRAL_Cons _ RAL_Zero) in Hdl; [|assumption].
-		specialize (Hsdbn 1).
-		apply (HR _ _ _ (S d) _ _ _ (or_introl Hr)); assumption.
 	+	apply (valid_DRAL_Cons _ RAL_Zero) in Hdl; [|assumption].
 		specialize (Hsdbn 0).
 		apply (HR _ _ _ (S d) _ _ _ (or_intror Hr)); assumption.
+	+	apply (valid_DRAL_Cons _ RAL_Zero) in Hdl; [|assumption].
+		specialize (Hsdbn 0).
+		apply (HR _ _ _ (S d) _ _ _ (or_introl Hr)); assumption.
+	+	apply (valid_DRAL_Cons _ RAL_Zero) in Hdl; [|assumption].
+		specialize (Hsdbn 1).
+		apply (HR _ _ _ (S d) _ _ _ (or_intror Hr)); assumption.
+	+	apply (valid_DRAL_Cons _ RAL_Zero) in Hdl; [|assumption].
+		specialize (Hsdbn 1).
+		apply (HR _ _ _ (S d) _ _ _ (or_introl Hr)); assumption.
+	+	apply (valid_DRAL_Cons _ RAL_Zero) in Hdl; [|assumption].
+		specialize (Hsdbn 0).
+		apply (HR _ _ _ (S d) _ _ _ (or_introl Hr)); assumption.
 	+	inversion_clear Hr.
 		exists d.
 		{	split; [|split].
@@ -519,15 +531,15 @@ Proof.
 			inversion_clear H.
 			assumption.
 		}
-	+	inversion_clear Hr.
-		exists d.
-		split; [|split]; [assumption|assumption|apply OP_None].
+	+	apply (valid_DRAL_Cons _ (RAL_One c)) in Hdl; [|assumption].
+		specialize (Hsdbn 0).
+		apply (HR _ _ _ (S d) _ _ _ (or_intror Hr)); assumption.
 	+	apply (valid_DRAL_Cons _ (RAL_One c)) in Hdl; [|assumption].
 		specialize (Hsdbn 1).
 		apply (HR _ _ _ (S d) _ _ _  (or_intror Hr)); assumption.
 	+	apply (valid_DRAL_Cons _ (RAL_One c)) in Hdl; [|assumption].
 		specialize (Hsdbn 0).
-		apply (HR _ _ _ (S d) _ _ _  (or_introl Hr)); assumption.
+		apply (HR _ _ _ (S d) _ _ _  (or_intror Hr)); assumption.
 	+	apply (valid_DRAL_Cons _ (RAL_One c)) in Hdl; [|assumption].
 		specialize (Hsdbn 0).
 		apply (HR _ _ _ (S d) _ _ _  (or_introl Hr)); assumption.
@@ -543,7 +555,7 @@ Proof.
 			assumption.
 		+	apply (valid_DRAL_Cons _ (RAL_One c)) in Hdl; [|assumption].
 			specialize (Hsdbn 1).
-			apply (HR _ _ _ (S d) _ _ _  (or_introl Hr)); assumption.
+			apply (HR _ _ _ (S d) _ _ _  (or_intror Hr)); assumption.
 		}
 	}
 Qed.
@@ -557,6 +569,54 @@ Proof.
 	+	assumption.
 	+	reflexivity.
 	+	apply valid_DRAL_Nil.
+	}
+Qed.
+
+
+Lemma RAL_open_None : forall (l : RAL) (n : BN) rdl rl,
+		RAL_open l n [] [] = (rdl, None, rl) -> rdl = rev l /\ rl = [].
+Proof.
+	intros l n rdl rl H.
+	enough (He : forall n dn dl rdl rl,
+				 (RAL_open l n dn dl = (rdl, None, rl) -> rdl = rev l ++ dl /\ rl = [])
+		   /\ (RAL_open_borrow l n dn dl = (rdl, None, rl) -> rdl = rev l ++ dl /\ rl = []));
+	  [apply He in H; rewrite app_nil_r in H; assumption|].
+	clear n rdl rl H.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intro n; destruct n as [|bn tn];
+			intros dn dl rdl rl; split; intro He; simpl in *; try discriminate.
+	+	inversion_clear He.
+		split; reflexivity.
+	+	inversion_clear He.
+		split; reflexivity.
+	+	inversion_clear He.
+		split; reflexivity.
+	+	inversion_clear He.
+		split; reflexivity.
+	+	apply HR in He.
+		rewrite <- app_assoc.
+		assumption.
+	+	apply HR in He.
+		rewrite <- app_assoc.
+		assumption.
+	+	destruct bn;
+			apply HR in He;
+			rewrite <- app_assoc;
+			assumption.
+	+	destruct bn;
+			apply HR in He;
+			rewrite <- app_assoc;
+			assumption.
+	+	apply HR in He.
+		rewrite <- app_assoc.
+		assumption.
+	+	destruct bn;
+			apply HR in He;
+			rewrite <- app_assoc;
+			assumption.
+	+	destruct bn; [|destruct tn]; [|inversion_clear He|];
+			apply HR in He;
+			rewrite <- app_assoc;
+			assumption.
 	}
 Qed.
 
@@ -685,22 +745,9 @@ Fixpoint RAL_create_aux n t :=
 	| 1 :: tn => RAL_One t :: RAL_create_aux tn (Node t t)
 	end.
 
-Functional Scheme RAL_create_ind := Induction for RAL_create_aux Sort Prop.
+Functional Scheme RAL_create_aux_ind := Induction for RAL_create_aux Sort Prop.
 
 Definition RAL_create n a := RAL_create_aux n (singleton a).
-
-Lemma RAL_create_size : forall n a, size (RAL_create n a) = n.
-Proof.
-	intros n a.
-	unfold RAL_create.
-	{	functional induction (RAL_create_aux n (singleton a)) using RAL_create_ind; simpl in *.
-	+	reflexivity.
-	+	rewrite IHl.
-		reflexivity.
-	+	rewrite IHl.
-		reflexivity.
-	}
-Qed.
 
 Lemma RAL_create_valid : forall n a, VRAL (RAL_create n a).
 Proof.
@@ -708,7 +755,7 @@ Proof.
 	set (t := singleton a).
 	enough (forall d, valid_CLBT d t -> valid_RAL d (RAL_create_aux n (singleton a)));
 		[apply H, singleton_valid|].
-	{	functional induction (RAL_create_aux n (singleton a)) using RAL_create_ind;
+	{	functional induction (RAL_create_aux n (singleton a));
 			intros d Ht; simpl in *.
 	+	apply valid_RAL_Nil.
 	+	apply valid_RAL_zero.
@@ -717,18 +764,6 @@ Proof.
 	+	apply valid_RAL_one; [assumption|].
 		apply IHl.
 		apply valid_Node; assumption.
-	}
-Qed.
-
-Lemma RAL_create_canonical : forall n a, CBN n -> CRAL (RAL_create n a).
-Proof.
-	intros n a Hn.
-	apply CRAL_struct_equiv.
-	apply BinNat.CBN_struct_equiv in Hn.
-	{	split.
-	+	apply RAL_create_valid.
-	+	rewrite RAL_create_size.
-		assumption.
 	}
 Qed.
 

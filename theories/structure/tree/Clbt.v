@@ -99,8 +99,8 @@ Qed.
 Fixpoint DCLBT_trace dt :=
 	match dt with
 	| DCLBT_Root => []
-	| DCLBT_Left dt _ => 1 :: (DCLBT_trace dt)
-	| DCLBT_Right _ dt => 0 :: (DCLBT_trace dt)
+	| DCLBT_Left dt _ => 0 :: (DCLBT_trace dt)
+	| DCLBT_Right _ dt => 1 :: (DCLBT_trace dt)
 	end.
 
 Definition CLBT_down_left '(t, dt) :=
@@ -173,8 +173,8 @@ Qed.
 Fixpoint CLBT_open zip dn :=
 	match dn with
 	| [] => zip
-	| 0 :: tdn => CLBT_open (CLBT_down_right zip) tdn
-	| 1 :: tdn => CLBT_open (CLBT_down_left zip) tdn
+	| 0 :: tdn => CLBT_open (CLBT_down_left zip) tdn
+	| 1 :: tdn => CLBT_open (CLBT_down_right zip) tdn
 	end.
 
 Lemma CLBT_open_valid : forall dn zip d,
@@ -185,11 +185,38 @@ Proof.
 	{	induction dn as [|b tdn HR]; intros zip d H; [|destruct b]; simpl.
 	+	assumption.
 	+	apply HR.
-		apply CLBT_down_right_valid.
-		assumption.
-	+	apply HR.
 		apply CLBT_down_left_valid.
 		assumption.
+	+	apply HR.
+		apply CLBT_down_right_valid.
+		assumption.
+	}
+Qed.
+
+Lemma CLBT_open_trace : forall dn d n zip,
+		valid_CLBT_zip d n zip ->
+		(length dn) <= n ->
+		DCLBT_trace (snd (CLBT_open zip dn)) = rev_append dn (DCLBT_trace (snd zip)).
+Proof.
+	intro dn.
+	{	induction dn as [|b tn HR]; intros d n zip Hz Hdn; [|destruct b]; simpl in *.
+	+	reflexivity.
+	+	destruct n; [apply Nat.nle_succ_0 in Hdn; contradiction|].
+		apply CLBT_down_left_valid in Hz as He.
+		apply HR in He; [|apply le_S_n; assumption].
+		rewrite He.
+		unfold CLBT_down_right.
+		destruct zip as [t dt], Hz as [Ht Hdt].
+		inversion_clear Ht.
+		reflexivity.
+	+	destruct n; [apply Nat.nle_succ_0 in Hdn; contradiction|].
+		apply CLBT_down_right_valid in Hz as He.
+		apply HR in He; [|apply le_S_n; assumption].
+		rewrite He.
+		unfold CLBT_down_right.
+		destruct zip as [t dt], Hz as [Ht Hdt].
+		inversion_clear Ht.
+		reflexivity.
 	}
 Qed.
 
