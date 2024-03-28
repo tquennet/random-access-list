@@ -33,13 +33,13 @@ Proof.
 Qed.
 
 Theorem RAL_size_canonical : forall (l : @RAL A),
-	CRAL l -> CBN (size l).
+	CRAL l -> BN_canonical (size l).
 Proof.
 	intros l H.
 	{	induction H.
-	+ apply CBN_0.
+	+	apply BN_canonical_0.
 	+	rewrite RAL_cons_inc.
-		apply CBN_inc.
+		apply BN_canonical_inc.
 		assumption.
 	}
 Qed.
@@ -193,7 +193,7 @@ Proof.
 	}
 Qed.
 
-Lemma RAL_create_canonical : forall n (a : A), CBN n -> CRAL (RAL_create n a).
+Lemma RAL_create_canonical : forall n (a : A), BN_canonical n -> CRAL (RAL_create n a).
 Proof.
 	intros n a Hn.
 	apply CRAL_struct_equiv.
