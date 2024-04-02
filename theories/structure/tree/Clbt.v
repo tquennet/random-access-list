@@ -8,109 +8,108 @@ Section CLBT.
 
 Context {A : Type}.
 
-Inductive CLBT :=
-	| Leaf : A -> CLBT
-	| Node : CLBT -> CLBT -> CLBT.
+Inductive t :=
+	| Leaf : A -> t
+	| Node : t -> t -> t.
 
-Inductive valid_CLBT : nat -> CLBT -> Prop :=
-	| valid_Leaf : forall a : A, valid_CLBT 0 (Leaf a)
-	| valid_Node : forall {n : nat} (l r : CLBT),
-		valid_CLBT n l -> valid_CLBT n r ->
-		valid_CLBT (S n) (Node l r).
+Inductive is_valid : nat -> t -> Prop :=
+	| valid_Leaf : forall a : A, is_valid 0 (Leaf a)
+	| valid_Node : forall {n : nat} (l r : t),
+		is_valid n l -> is_valid n r ->
+		is_valid (S n) (Node l r).
 
-Definition singleton (a : A) : CLBT := Leaf a.
-Lemma singleton_valid : forall a : A, valid_CLBT 0 (singleton a).
+Definition singleton (a : A) : t := Leaf a.
+Lemma singleton_valid : forall a : A, is_valid 0 (singleton a).
 Proof.
 	intro a.
 	apply valid_Leaf.
 Qed.
 
-Definition CLBT_merge (l r : CLBT) : CLBT := Node l r.
-Lemma CLBT_merge_valid : forall {n : nat} (l r : CLBT),
-	valid_CLBT n l -> valid_CLBT n r -> valid_CLBT (S n) (CLBT_merge l r).
+
+Definition merge (l r : t) : t := Node l r.
+Lemma merge_valid : forall {n : nat} (l r : t),
+	is_valid n l -> is_valid n r -> is_valid (S n) (merge l r).
 Proof.
 	intros n l r Hl Hr.
 	apply valid_Node; assumption.
 Qed.
 
-Fixpoint CLBT_head (t : CLBT) : A :=
+Fixpoint head t : A :=
 	match t with
 	| Leaf a => a
-	| Node _ r => CLBT_head r
+	| Node _ r => head r
 	end.
 
-Definition CLBT_left (t : CLBT) :=
+Definition left t :=
 	match t with
 	| Leaf _ => t
 	| Node l _ => l
 	end.
-Definition CLBT_right (t : CLBT) :=
+Definition right t :=
 	match t with
 	| Leaf _ => t
 	| Node _ r => r
 	end.
 
-Lemma CLBT_left_valid : forall {n : nat} (t : CLBT),
-	valid_CLBT (S n) t -> valid_CLBT n (CLBT_left t).
+Lemma left_valid : forall {n : nat} t,
+	is_valid (S n) t -> is_valid n (left t).
 Proof.
 	intros n t H.
 	inversion_clear H.
 	assumption.
 Qed.
 
-Lemma CLBT_right_valid : forall {n : nat} (t : CLBT),
-	valid_CLBT (S n) t -> valid_CLBT n (CLBT_right t).
+Lemma right_valid : forall {n : nat} t,
+	is_valid (S n) t -> is_valid n (right t).
 Proof.
 	intros n t H.
 	inversion_clear H.
 	assumption.
 Qed.
 
-Section DCLBT.
+Inductive dt :=
+	| DRoot : dt
+	| DLeft : dt -> t -> dt
+	| DRight : t -> dt -> dt.
 
-Inductive DCLBT :=
-	| DCLBT_Root : DCLBT
-	| DCLBT_Left : DCLBT -> CLBT -> DCLBT
-	| DCLBT_Right : CLBT -> DCLBT -> DCLBT.
+Inductive is_valid_d : nat -> nat -> dt -> Prop :=
+	| valid_DRoot : forall (n : nat), is_valid_d n n DRoot
+	| valid_DLeft : forall (d n : nat) dt t,
+		is_valid_d d (S n) dt -> is_valid n t ->
+		is_valid_d d n (DLeft dt t)
+	| valid_DRight : forall (d n : nat) dt t,
+		is_valid n t -> is_valid_d d (S n) dt ->
+		is_valid_d d n (DRight t dt).
 
-Inductive valid_DCLBT : nat -> nat -> DCLBT -> Prop :=
-	| valid_DCLBT_Root : forall (n : nat), valid_DCLBT n n DCLBT_Root
-	| valid_DCLBT_Left : forall (d n : nat) (dt : DCLBT) (t : CLBT),
-		valid_DCLBT d (S n) dt -> valid_CLBT n t ->
-		valid_DCLBT d n (DCLBT_Left dt t)
-	| valid_DCLBT_Right : forall (d n : nat) (dt : DCLBT) (t : CLBT),
-		valid_CLBT n t -> valid_DCLBT d (S n) dt ->
-		valid_DCLBT d n (DCLBT_Right t dt).
+Definition zip := t * dt.
+Definition make_zip t : zip := (t, DRoot).
 
-Definition CLBT_zip := CLBT * DCLBT.
-Definition CLBT_make_zip t : CLBT_zip := (t, DCLBT_Root).
+Definition is_valid_zip (d n : nat) '(t, dt) :=
+	is_valid n t /\ is_valid_d d n dt.
 
-Definition valid_CLBT_zip (d n : nat) '(t, dt) :=
-	valid_CLBT n t /\ valid_DCLBT d n dt.
-
-Lemma CLBT_make_zip_valid : forall t n,
-		valid_CLBT n t -> valid_CLBT_zip n n (CLBT_make_zip t).
+Lemma make_zip_valid : forall t n,
+		is_valid n t -> is_valid_zip n n (make_zip t).
 Proof.
 	intros t n H.
-	split; [assumption| apply valid_DCLBT_Root].
+	split; [assumption| apply valid_DRoot].
 Qed.
 
 
-Fixpoint DCLBT_trace dt :=
+Fixpoint dtrace dt :=
 	match dt with
-	| DCLBT_Root => []
-	| DCLBT_Left dt _ => 0 :: (DCLBT_trace dt)
-	| DCLBT_Right _ dt => 1 :: (DCLBT_trace dt)
+	| DRoot => []
+	| DLeft dt _ => 0 :: (dtrace dt)
+	| DRight _ dt => 1 :: (dtrace dt)
 	end.
 
-Definition CLBT_down_left '(t, dt) :=
+Definition down_left '(t, dt) :=
 	match t with
 	| Leaf _ => (t, dt)
-	| Node l r => (l, DCLBT_Left dt r)
+	| Node l r => (l, DLeft dt r)
 	end.
 
-Lemma CLBT_down_left_valid : forall (zip : CLBT_zip) {d n : nat},
-	valid_CLBT_zip d (S n) zip -> valid_CLBT_zip d n (CLBT_down_left zip).
+Lemma down_left_valid : forall zip {d n : nat},
+	is_valid_zip d (S n) zip -> is_valid_zip d n (down_left zip).
 Proof.
 	intros zip d n H.
 	destruct zip as [t dt].
@@ -118,18 +117,18 @@ Proof.
 	inversion_clear Ht.
 	{	split.
 	+	assumption.
-	+	apply valid_DCLBT_Left; assumption.
+	+	apply valid_DLeft; assumption.
 	}
 Qed.
 
-Definition CLBT_down_right '(t, dt) :=
+Definition down_right '(t, dt) :=
 	match t with
 	| Leaf _ => (t, dt)
-	| Node l r => (r, DCLBT_Right l dt)
+	| Node l r => (r, DRight l dt)
 	end.
 
-Lemma CLBT_down_right_valid : forall (zip : CLBT_zip) {d n : nat},
-	valid_CLBT_zip d (S n) zip -> valid_CLBT_zip d n (CLBT_down_right zip).
+Lemma down_right_valid : forall zip {d n : nat},
+	is_valid_zip d (S n) zip -> is_valid_zip d n (down_right zip).
 Proof.
 	intros zip d n H.
 	destruct zip as [t dt].
@@ -137,27 +136,27 @@ Proof.
 	inversion_clear Ht.
 	{	split.
 	+	assumption.
-	+	apply valid_DCLBT_Right; assumption.
+	+	apply valid_DRight; assumption.
 	}
 Qed.
 
-Definition CLBT_up '(t, dt) :=
+Definition up '(t, dt) :=
 	match dt with
-	| DCLBT_Root => (t, dt)
-	| DCLBT_Left dt r => (Node t r, dt)
-	| DCLBT_Right l dt => (Node l t, dt)
+	| DRoot => (t, dt)
+	| DLeft dt r => (Node t r, dt)
+	| DRight l dt => (Node l t, dt)
 	end.
 
-Fixpoint CLBT_plug t dt : CLBT :=
+Fixpoint plug t dt :=
 	match dt with
-	| DCLBT_Root => t
-	| DCLBT_Left dt r => CLBT_plug (Node t r) dt
-	| DCLBT_Right l dt => CLBT_plug (Node l t) dt
+	| DRoot => t
+	| DLeft dt r => plug (Node t r) dt
+	| DRight l dt => plug (Node l t) dt
 	end.
 
-Lemma CLBT_plug_valid : forall dt t n d,
-		valid_CLBT d t -> valid_DCLBT n d dt ->
-		valid_CLBT n (CLBT_plug t dt).
+Lemma plug_valid : forall dt t n d,
+		is_valid d t -> is_valid_d n d dt ->
+		is_valid n (plug t dt).
 Proof.
 	intro dt.
 	{	induction dt as [| dt HR r | l dt HR]; intros t n d Ht Hdt;
@@ -170,56 +169,53 @@ Proof.
 	}
 Qed.
 
-Fixpoint CLBT_open zip dn :=
+Fixpoint open zip dn :=
 	match dn with
 	| [] => zip
-	| 0 :: tdn => CLBT_open (CLBT_down_left zip) tdn
-	| 1 :: tdn => CLBT_open (CLBT_down_right zip) tdn
+	| 0 :: tdn => open (down_left zip) tdn
+	| 1 :: tdn => open (down_right zip) tdn
 	end.
 
-Lemma CLBT_open_valid : forall dn zip d,
-		valid_CLBT_zip d (length dn) zip ->
-		valid_CLBT_zip d 0 (CLBT_open zip dn).
+Lemma open_valid : forall dn zip d,
+		is_valid_zip d (length dn) zip ->
+		is_valid_zip d 0 (open zip dn).
 Proof.
 	intro dn.
 	{	induction dn as [|b tdn HR]; intros zip d H; [|destruct b]; simpl.
 	+	assumption.
 	+	apply HR.
-		apply CLBT_down_left_valid.
+		apply down_left_valid.
 		assumption.
 	+	apply HR.
-		apply CLBT_down_right_valid.
+		apply down_right_valid.
 		assumption.
 	}
 Qed.
 
-Lemma CLBT_open_trace : forall dn d n zip,
-		valid_CLBT_zip d n zip ->
-		(length dn) <= n ->
-		DCLBT_trace (snd (CLBT_open zip dn)) = rev_append dn (DCLBT_trace (snd zip)).
+Lemma open_trace : forall dn d n zip,
+		is_valid_zip d n zip -> (length dn) <= n ->
+		dtrace (snd (open zip dn)) = rev_append dn (dtrace (snd zip)).
 Proof.
 	intro dn.
 	{	induction dn as [|b tn HR]; intros d n zip Hz Hdn; [|destruct b]; simpl in *.
 	+	reflexivity.
 	+	destruct n; [apply Nat.nle_succ_0 in Hdn; contradiction|].
-		apply CLBT_down_left_valid in Hz as He.
+		apply down_left_valid in Hz as He.
 		apply HR in He; [|apply le_S_n; assumption].
 		rewrite He.
-		unfold CLBT_down_right.
+		unfold down_right.
 		destruct zip as [t dt], Hz as [Ht Hdt].
 		inversion_clear Ht.
 		reflexivity.
 	+	destruct n; [apply Nat.nle_succ_0 in Hdn; contradiction|].
-		apply CLBT_down_right_valid in Hz as He.
+		apply down_right_valid in Hz as He.
 		apply HR in He; [|apply le_S_n; assumption].
 		rewrite He.
-		unfold CLBT_down_right.
+		unfold down_right.
 		destruct zip as [t dt], Hz as [Ht Hdt].
 		inversion_clear Ht.
 		reflexivity.
 	}
 Qed.
-
-End DCLBT.
 
 End CLBT.

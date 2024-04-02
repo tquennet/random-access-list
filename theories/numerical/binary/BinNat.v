@@ -28,41 +28,41 @@ Open Scope bin_nat_scope.
 (********************************************************************************)
 
 Variant Bit := Zero | One.
-Definition BN := list Bit.
-Definition DBN := BN.
+Definition t := list Bit.
+Definition dt := t.
 
 Notation "0" := Zero.
 Notation "1" := One.
 
-Fixpoint BN_to_nat n : nat :=
+Fixpoint to_nat n : nat :=
 	match n with
 	| [] => O
-	| 0 :: t => 2 * (BN_to_nat t)
-	| 1 :: t => S (2 * BN_to_nat t)
+	| 0 :: t => 2 * (to_nat t)
+	| 1 :: t => S (2 * to_nat t)
 	end.
 
-Definition BN_zero : BN := [].
+Definition zero : t := [].
 
-Fixpoint BN_inc n :=
+Fixpoint inc n :=
 	match n with
 	| [] => [1]
 	| 0 :: t => 1 :: t
-	| 1 :: t => 0 :: BN_inc t
+	| 1 :: t => 0 :: inc t
 	end.
 
 
-Functional Scheme BN_inc_ind := Induction for BN_inc Sort Prop.
+Functional Scheme inc_ind := Induction for inc Sort Prop.
 
 
-Inductive BN_canonical : BN -> Prop :=
-	| BN_canonical_0 : BN_canonical []
-	| BN_canonical_inc : forall (n : BN),
-		BN_canonical n -> BN_canonical (BN_inc n).
+Inductive is_canonical : t -> Prop :=
+	| canonical_0 : is_canonical []
+	| canonical_inc : forall (n : t),
+		is_canonical n -> is_canonical (inc n).
 
-Local Lemma CBN_1 : BN_canonical [1].
+Local Lemma canonical_1 : is_canonical [1].
 Proof.
-	replace [1] with (BN_inc []) by reflexivity.
-	apply BN_canonical_inc, BN_canonical_0.
+	replace [1] with (inc []) by reflexivity.
+	apply canonical_inc, canonical_0.
 Qed.
 
 (*Lemma BN_inc_S : forall (n : BN),
@@ -99,118 +99,118 @@ Proof.
 	}
 Qed.*)
 
-Fixpoint CBN_struct b n :=
+Fixpoint is_canonical_struct_fix b n :=
 	match n with
 	| [] => b
-	| 0 :: tn => CBN_struct false tn
-	| 1 :: tn => CBN_struct true tn
+	| 0 :: tn => is_canonical_struct_fix false tn
+	| 1 :: tn => is_canonical_struct_fix true tn
 	end.
 
-Definition CBN_st n := CBN_struct true n = true.
+Definition is_canonical_struct n := is_canonical_struct_fix true n = true.
 
-Local Lemma CBN_struct_false : forall n,
-	CBN_struct false n = true -> CBN_st n.
+Local Lemma is_canonical_struct_false : forall n,
+	is_canonical_struct_fix false n = true -> is_canonical_struct n.
 Proof.
 	intros n H.
 	destruct n; [inversion_clear H|].
 	assumption.
 Qed.
 
-Local Lemma CBN_struct_tl : forall b0 b1 n,
-	CBN_st (b1 :: n) -> CBN_st (b0 :: b1 :: n).
+Local Lemma is_canonical_struct_tl : forall b0 b1 n,
+	is_canonical_struct (b1 :: n) -> is_canonical_struct (b0 :: b1 :: n).
 Proof.
 	intros b0 b1 n H.
 	destruct b0; assumption.
 Qed.
 
-Local Lemma BN_inc_non_empty : forall (n : BN),
-	exists b tn, b :: tn = BN_inc n.
+Local Lemma inc_non_empty : forall (n : t),
+	exists b tn, b :: tn = inc n.
 Proof.
 	intros n.
 	{	destruct n as [|b tn]; [|destruct b].
 	+	exists 1, []; reflexivity.
 	+	exists 1, tn; reflexivity.
-	+	exists 0, (BN_inc tn); reflexivity.
+	+	exists 0, (inc tn); reflexivity.
 	}
 Qed.
 
-Local Lemma CBN_inc_struct : forall (n : BN),
-	CBN_st n ->
-	CBN_st (BN_inc n).
+Local Lemma is_canonical_inc_struct : forall (n : t),
+	is_canonical_struct n ->
+	is_canonical_struct (inc n).
 Proof.
 	intros n H.
-	{	functional induction (BN_inc n).
+	{	functional induction (inc n).
 	+	reflexivity.
-	+	destruct t; [discriminate|].
+	+	destruct t0; [discriminate|].
 		exact H.
 	+	apply IHl in H.
-		pose proof (Hinc := BN_inc_non_empty t).
+		pose proof (Hinc := inc_non_empty t0).
 		destruct Hinc as [b Hinc], Hinc as [tn Hinc].
 		rewrite <- Hinc in *.
-		apply CBN_struct_tl.
+		apply is_canonical_struct_tl.
 		assumption.
 	}
 Qed.
 
-Local Lemma CBN_double : forall (n : BN),
-	BN_canonical n -> BN_canonical (0 :: (BN_inc n)).
+Local Lemma canonical_double : forall (n : t),
+	is_canonical n -> is_canonical (0 :: (inc n)).
 Proof.
 	intros n H.
 	{	induction H.
-	+	replace (0 :: BN_inc []) with (BN_inc (BN_inc [])) by reflexivity.
-		apply BN_canonical_inc, BN_canonical_inc, BN_canonical_0.
-	+	apply BN_canonical_inc, BN_canonical_inc in IHBN_canonical.
-		simpl in IHBN_canonical.
+	+	replace (0 :: inc []) with (inc (inc [])) by reflexivity.
+		apply canonical_inc, canonical_inc, canonical_0.
+	+	apply canonical_inc, canonical_inc in IHis_canonical.
+		simpl in IHis_canonical.
 		assumption.
 	}
 Qed.
 
-Local Lemma CBN_struct_equiv : forall (n : BN),
-	BN_canonical n <-> CBN_struct true n = true.
+Local Lemma is_canonical_struct_equiv : forall (n : t),
+	is_canonical n <-> is_canonical_struct n.
 Proof.
 	intro n.
 	{	split; intro H.
 	+	{	induction H as [|n H].
 		+	reflexivity.
-		+	apply CBN_inc_struct.
+		+	apply is_canonical_inc_struct.
 			assumption.
 		}
 	+	{	induction n as [|bn tn].
-		+	apply BN_canonical_0.
-		+	destruct tn; [destruct bn; [discriminate|apply CBN_1]|].
-			assert (Ht : CBN_st (b :: tn)) by (destruct bn; assumption).
+		+	apply canonical_0.
+		+	destruct tn; [destruct bn; [discriminate|apply canonical_1]|].
+			assert (Ht : is_canonical_struct (b :: tn)) by (destruct bn; assumption).
 			apply IHtn in Ht.
 			{	destruct Ht, bn.
 			+	discriminate.
-			+	apply CBN_1.
-			+	apply CBN_double.
+			+	apply canonical_1.
+			+	apply canonical_double.
 				assumption.
-			+	replace (1 :: BN_inc n) with (BN_inc (0 :: BN_inc n)) by reflexivity.
-				apply BN_canonical_inc.
-				apply CBN_double.
+			+	replace (1 :: inc n) with (inc (0 :: inc n)) by reflexivity.
+				apply canonical_inc.
+				apply canonical_double.
 				assumption.
 			}
 		}
 	}
 Qed.
 
-Fixpoint BN_trim n :=
+Fixpoint trim n :=
 	match n with
 	| [] => []
-	| 1 :: tl => 1 :: (BN_trim tl)
-	| 0 :: tl => match (BN_trim tl) with
+	| 1 :: tl => 1 :: (trim tl)
+	| 0 :: tl => match (trim tl) with
 		| [] => []
 		| r => 0 :: r
 		end
 	end.
 
-Functional Scheme BN_trim_ind := Induction for BN_trim Sort Prop.
+Functional Scheme trim_ind := Induction for trim Sort Prop.
 
-Lemma BN_trim_canonical : forall l, BN_canonical (BN_trim l).
+Lemma trim_canonical : forall l, is_canonical (trim l).
 Proof.
 	intro l.
-	apply CBN_struct_equiv.
-	{	functional induction (BN_trim l).
+	apply is_canonical_struct_equiv.
+	{	functional induction (trim l).
 	+	reflexivity.
 	+	reflexivity.
 	+	rewrite e1 in IHl0.
@@ -219,86 +219,82 @@ Proof.
 	}
 Qed.
 
-(*Local Lemma CBN_cons : forall b n,
-	BN_canonical (b :: n) -> BN_canonical n.
-Proof.
-	intros b n Hn.
-	apply CBN_struct_equiv; apply CBN_struct_equiv in Hn.
-	{	destruct b.
-	+	apply CBN_struct_false.
-		assumption.
-	+	assumption.
-	}
-Qed.*)
-
-Fixpoint BN_dec n :=
+Fixpoint dec n :=
 	match n with
 	| [] => []
 	| [1] => []
-	| 0 :: t => 1 :: (BN_dec t)
+	| 0 :: t => 1 :: (dec t)
 	| 1 :: t => 0 :: t
 	end.
 
-Functional Scheme BN_dec_ind := Induction for BN_dec Sort Prop.
+Functional Scheme dec_ind := Induction for dec Sort Prop.
 
-Lemma BN_inc_dec : forall (n : BN),
-	BN_canonical n -> BN_dec (BN_inc n) = n.
+Lemma inc_dec : forall (n : t),
+	is_canonical n -> dec (inc n) = n.
 Proof.
 	intros n Hn.
-	apply CBN_struct_equiv in Hn.
-	{	functional induction (BN_inc n).
+	apply is_canonical_struct_equiv in Hn.
+	{	functional induction (inc n).
 	+ reflexivity.
-	+	destruct t; [discriminate|].
+	+	destruct t0; [discriminate|].
 		reflexivity.
 	+	simpl.
-		destruct t; [reflexivity|].
+		destruct t0; [reflexivity|].
 		apply IHl in Hn.
 		rewrite Hn.
 		reflexivity.
 	}
 Qed.
 
-Lemma BN_dec_canonical : forall (n : BN),
-	BN_canonical n -> BN_canonical (BN_dec n).
+Lemma dec_canonical : forall (n : t),
+	is_canonical n -> is_canonical (dec n).
 Proof.
 	intros n Hn.
-	destruct Hn; [apply BN_canonical_0|].
-	rewrite BN_inc_dec; assumption.
+	destruct Hn; [apply canonical_0|].
+	rewrite inc_dec; assumption.
 Qed.
 
-Fixpoint BN_sub_aux n m acc :=
+Fixpoint sub_aux n m acc :=
 	match n, m with
 	| [], _ => None
-	| 0 :: tn, [] => BN_sub_aux tn [] (0 :: acc)
+	| 0 :: tn, [] => sub_aux tn [] (0 :: acc)
 	| 1 :: tn, [] => Some (rev_append acc (0 :: tn))
 	| 0 :: tn, 0 :: tm | 1 :: tn, 1 :: tm
-		=> BN_sub_aux tn tm (0 :: acc)
-	| 0 :: tn, 1 :: tm => BN_sub_aux tn tm (1 :: acc)
-	| 1 :: tn, 0 :: tm => BN_sub_borrow tn tm (1 :: acc)
+		=> sub_aux tn tm (0 :: acc)
+	| 0 :: tn, 1 :: tm => sub_aux tn tm (1 :: acc)
+	| 1 :: tn, 0 :: tm => sub_borrow tn tm (1 :: acc)
 	end
-with BN_sub_borrow n m acc :=
+with sub_borrow n m acc :=
 	match n, m with
 	| [], _ => None
 	| _, [] => None
 	| 1 :: tn , [1] => Some (rev_append acc (0 :: tn))
 	| 0 :: tn, 0 :: tm | 1 :: tn, 1 :: tm
-		=> BN_sub_borrow tn tm (1 :: acc)
-	| 1 :: tn, 0 :: tm => BN_sub_borrow tn tm (0 :: acc)
-	| 0 :: tn, 1 :: tm => BN_sub_aux tn tm (0 :: acc)
+		=> sub_borrow tn tm (1 :: acc)
+	| 1 :: tn, 0 :: tm => sub_borrow tn tm (0 :: acc)
+	| 0 :: tn, 1 :: tm => sub_aux tn tm (0 :: acc)
 	end.
 
-Definition BN_sub n m :=
-	match BN_sub_aux n m [] with
-	| Some r => BN_trim (BN_inc r)
+Definition sub n m :=
+	match sub_aux n m [] with
+	| Some r => trim (inc r)
 	| None => []
 	end.
 
-Notation "n - m" := (BN_sub n m) : bin_nat_scope.
+Notation "n - m" := (sub n m) : bin_nat_scope.
 
-Lemma BN_sub_canonical : forall n m, BN_canonical (n - m).
+Lemma sub_canonical : forall n m, is_canonical (n - m).
 Proof.
 	intros n m.
-	unfold BN_sub.
-	destruct (BN_sub_aux n m []); [|apply BN_canonical_0].
-	apply BN_trim_canonical.
+	unfold sub.
+	destruct (sub_aux n m []); [|apply canonical_0].
+	apply trim_canonical.
 Qed.
+
+Module Notations.
+
+Notation "0" := Zero.
+Notation "1" := One.
+Notation "n - m" := (sub n m) : bin_nat_scope.
+
+End Notations.
