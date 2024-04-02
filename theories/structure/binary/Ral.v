@@ -5,9 +5,9 @@ Module CLBT := structure.tree.Clbt.
 Module BinNat := numerical.binary.BinNat.
 Import BinNat.Notations.
 
-Open Scope type_scope.
-Import ListNotations.
+Open Scope nat_scope.
 Open Scope bin_nat_scope.
+Import ListNotations.
 
 (********************************************************************************)
 (*	RAL (A : Type) == the type of random access list of items of type A.		*)
@@ -140,15 +140,15 @@ End cons.
 
 Section size.
 
-Fixpoint size (l : t) : BinNat.t :=
+Fixpoint strip (l : t) : BinNat.t :=
 	match l with
 	| [] => []
-	| Zero :: t => 0 :: (size t)
-	| One _ :: t => 1 :: (size t)
+	| Zero :: t => 0 :: (strip t)
+	| One _ :: t => 1 :: (strip t)
 	end.
 
-Local Lemma cons_aux_inc : forall (l : t) (clbt : CLBT),
-	size (cons_aux clbt l) = BinNat.inc (size l).
+Local Lemma cons_aux_inc_strip : forall (l : t) (clbt : CLBT),
+	strip (cons_aux clbt l) = BinNat.inc (strip l).
 Proof.
 	intro l.
 	{	induction l as [| bit t HR]; try destruct bit.
@@ -161,11 +161,45 @@ Proof.
 	}
 Qed.
 
-Theorem cons_inc : forall (l : t) (a : A),
-	size (cons a l) = BinNat.inc (size l).
+Fixpoint size (l : t) : nat :=
+	match l with
+	| [] => 0
+	| Zero :: t => size t
+	| One c :: t => CLBT.size c + size t
+	end.
+
+Theorem cons_inc_strip : forall (l : t) (a : A),
+	strip (cons a l) = BinNat.inc (strip l).
 Proof.
 	intros l a.
-	apply cons_aux_inc.
+	apply cons_aux_inc_strip.
+Qed.
+
+Theorem size_strip_valid : forall l, is_valid l -> BinNat.to_nat (strip l) = size l.
+Proof.
+	intros l H.
+	enough (Ha : forall n, valid n l -> 2 ^ n * BinNat.to_nat (strip l) = size l);
+	  [apply Ha in H; simpl in H; rewrite <- plus_n_O in H; assumption|].
+	clear H.
+	{	induction l as [| b tl HR]; [|destruct b]; intros n H; simpl in *.
+	+	rewrite Nat.mul_0_r.
+		reflexivity.
+	+	inversion_clear H.
+		apply HR in H1 as H.
+		rewrite <- H, Nat.pow_succ_r', (Nat.mul_comm 2), <- Nat.mul_assoc.
+		reflexivity.
+	+	inversion_clear H.
+		apply HR in H1 as H.
+		inversion_clear H0.
+		rewrite <- mult_n_Sm, Nat.add_comm.
+		{	apply f_equal2_plus.
+		+	symmetry.
+			apply CLBT.valid_size.
+			assumption.
+		+	rewrite <- H, Nat.pow_succ_r', (Nat.mul_comm 2), <- Nat.mul_assoc.
+			reflexivity.
+		}
+	}
 Qed.
 
 End size.
@@ -183,7 +217,7 @@ Inductive is_canonical : t -> Prop :=
 		  is_canonical l -> is_canonical (cons a l).
 
 
-Definition is_canonical_struct n l := valid n l /\ BinNat.is_canonical_struct (size l).
+Definition is_canonical_struct n l := valid n l /\ BinNat.is_canonical_struct (strip l).
 
 Lemma is_canonical_aux_to_struct : forall n l, is_canonical_aux n l -> is_canonical_struct n l.
 Proof.
@@ -192,7 +226,7 @@ Proof.
 	+	split; [apply valid_Nil| reflexivity].
 	+	destruct HR as [Hvl Hs].
 		split; [apply cons_aux_valid; assumption|].
-		enough (forall b, BinNat.is_canonical_struct_fix b (size (cons_aux t l)) = true);
+		enough (forall b, BinNat.is_canonical_struct_fix b (strip (cons_aux t l)) = true);
 			[apply H|].
 		clear Hl Ht Hvl.
 		{	functional induction (cons_aux t l); intro b; simpl in *.
@@ -427,6 +461,8 @@ Qed.
 End tail.
 
 Section open.
+
+Open Scope type_scope.
 
 Definition dt := t.
 Definition zip := dt * option (@CLBT.zip A) * t.

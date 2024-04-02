@@ -50,9 +50,7 @@ Fixpoint inc n :=
 	| 1 :: t => 0 :: inc t
 	end.
 
-
 Functional Scheme inc_ind := Induction for inc Sort Prop.
-
 
 Inductive is_canonical : t -> Prop :=
 	| canonical_0 : is_canonical []
@@ -293,8 +291,8 @@ Qed.
 
 Module Notations.
 
-Notation "0" := Zero.
-Notation "1" := One.
+Notation "0" := Zero : bin_nat_scope.
+Notation "1" := One : bin_nat_scope.
 Notation "n - m" := (sub n m) : bin_nat_scope.
 
 End Notations.

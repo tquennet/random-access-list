@@ -25,6 +25,22 @@ Proof.
 	apply valid_Leaf.
 Qed.
 
+Fixpoint size t : nat :=
+	match t with
+	| Leaf _ => 1
+	| Node l r => size l + size r
+	end.
+
+Lemma valid_size : forall n t, is_valid n t -> size t = 2 ^ n.
+Proof.
+	intros n t H.
+	{	induction H as [|n l r _ HRl _ HRr].
+	+	reflexivity.
+	+	simpl.
+		rewrite HRl, HRr, <- plus_n_O.
+		reflexivity.
+	}
+Qed.
 
 Definition merge (l r : t) : t := Node l r.
 Lemma merge_valid : forall {n : nat} (l r : t),

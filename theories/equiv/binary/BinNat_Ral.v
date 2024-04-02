@@ -19,9 +19,9 @@ Open Scope bin_nat_scope.
 Section BinNatRal.
 Context {A : Type}.
 
-Definition cons_inc := @RAL.cons_inc A.
+Definition cons_inc_strip := @RAL.cons_inc_strip A.
 
-Theorem trim_size : forall (l : @RAL.t A), RAL.size (RAL.trim l) = BinNat.trim (RAL.size l).
+Theorem trim_strip : forall (l : @RAL.t A), RAL.strip (RAL.trim l) = BinNat.trim (RAL.strip l).
 Proof.
 	intro l.
 	{	induction l, (@RAL.trim A l) using RAL.trim_ind; simpl in *.
@@ -35,26 +35,26 @@ Proof.
 	}
 Qed.
 
-Theorem size_canonical : forall (l : @RAL.t A),
-	RAL.is_canonical l -> BinNat.is_canonical (RAL.size l).
+Theorem strip_canonical : forall (l : @RAL.t A),
+	RAL.is_canonical l -> BinNat.is_canonical (RAL.strip l).
 Proof.
 	intros l H.
 	{	induction H.
 	+	apply BinNat.canonical_0.
-	+	rewrite RAL.cons_inc.
+	+	rewrite RAL.cons_inc_strip.
 		apply BinNat.canonical_inc.
 		assumption.
 	}
 Qed.
 
 Theorem tail_dec : forall (l : @RAL.t A),
-	RAL.is_canonical l -> RAL.size (RAL.tail l) = BinNat.dec (RAL.size l).
+	RAL.is_canonical l -> RAL.strip (RAL.tail l) = BinNat.dec (RAL.strip l).
 Proof.
 	intros l Hl.
 	{	destruct Hl.
 	+	reflexivity.
-	+	rewrite RAL.cons_tail, RAL.cons_inc; [|assumption].
-		apply size_canonical in Hl.
+	+	rewrite RAL.cons_tail, RAL.cons_inc_strip; [|assumption].
+		apply strip_canonical in Hl.
 		rewrite BinNat.inc_dec; [|assumption].
 		reflexivity.
 	}
@@ -63,9 +63,9 @@ Qed.
 Theorem open_sub_Some : forall (l : @RAL.t A) d n dn dl rdl t dt rl,
 		RAL.valid d l -> length dn <= d ->
 		(RAL.open l n dn dl = (rdl, Some(t, dt), rl) ->
-			(BinNat.sub_aux (RAL.size l) n dn) = Some(CLBT.dtrace dt ++ 0 :: RAL.size rl))
+			(BinNat.sub_aux (RAL.strip l) n dn) = Some(CLBT.dtrace dt ++ 0 :: RAL.strip rl))
 		/\ (RAL.open_borrow l n dn dl = (rdl, Some(t, dt), rl) ->
-			(BinNat.sub_borrow (RAL.size l) n dn) = Some(CLBT.dtrace dt ++ 0 :: RAL.size rl)).
+			(BinNat.sub_borrow (RAL.strip l) n dn) = Some(CLBT.dtrace dt ++ 0 :: RAL.strip rl)).
 Proof.
 	intros l.
 	{	induction l as [|bl tl HR]; intros d n dn dl rdl t dt rl Hl Hdn;
@@ -126,9 +126,9 @@ Qed.
 
 Theorem open_sub_None : forall (l : @RAL.t A) n dn dl rdl rl,
 		(RAL.open l n dn dl = (rdl, None, rl) ->
-			BinNat.sub_aux (RAL.size l) n dn = None)
+			BinNat.sub_aux (RAL.strip l) n dn = None)
 		/\ (RAL.open_borrow l n dn dl = (rdl, None, rl) ->
-			BinNat.sub_borrow (RAL.size l) n dn = None).
+			BinNat.sub_borrow (RAL.strip l) n dn = None).
 Proof.
 	intro l.
 	{	induction l as [|bl tl HR]; [|destruct bl]; intros n dn dl rdl rl;
@@ -152,8 +152,8 @@ Proof.
 	}
 Qed.
 
-Lemma DCLBT_to_RAL_size : forall dt (l : @RAL.t A),
-		RAL.size (RAL.DCLBT_to_RAL l dt) = CLBT.dtrace dt ++ 0 :: (RAL.size l).
+Lemma DCLBT_to_RAL_strip : forall dt (l : @RAL.t A),
+		RAL.strip (RAL.DCLBT_to_RAL l dt) = CLBT.dtrace dt ++ 0 :: (RAL.strip l).
 Proof.
 	intros dt l.
 	{	induction dt as [| dt HR t| t dt HR]; simpl.
@@ -167,7 +167,7 @@ Qed.
 
 Theorem drop_sub : forall (l : @RAL.t A) n,
 		RAL.is_valid l ->
-		RAL.size (RAL.drop l n) = BinNat.sub (RAL.size l) n.
+		RAL.strip (RAL.drop l n) = BinNat.sub (RAL.strip l) n.
 Proof.
 	intros l n H.
 	unfold BinNat.sub, RAL.drop.
@@ -176,7 +176,7 @@ Proof.
 	+	destruct zip as [t dt].
 		pose proof (Ho := open_sub_Some l 0 n [] []).
 		apply Ho in He; [| assumption | apply le_0_n].
-		rewrite trim_size, RAL.cons_aux_inc, DCLBT_to_RAL_size, He.
+		rewrite trim_strip, RAL.cons_aux_inc_strip, DCLBT_to_RAL_strip, He.
 		reflexivity.
 	+	pose proof (Ho := open_sub_None l n [] []).
 		apply Ho in He.
@@ -185,7 +185,7 @@ Proof.
 	}
 Qed.
 
-Theorem create_size : forall n (a : A), RAL.size (RAL.create n a) = n.
+Theorem create_strip : forall n (a : A), RAL.strip (RAL.create n a) = n.
 Proof.
 	intros n a.
 	unfold RAL.create.
@@ -209,7 +209,7 @@ Proof.
 	apply BinNat.is_canonical_struct_equiv in Hn.
 	{	split.
 	+	apply RAL.create_valid.
-	+	rewrite create_size.
+	+	rewrite create_strip.
 		assumption.
 	}
 Qed.
