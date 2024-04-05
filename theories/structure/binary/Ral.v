@@ -483,7 +483,7 @@ Inductive valid_dt : nat -> dt -> Prop :=
 Fixpoint open (l : t) (n : BinNat.t) (dbn : BinNat.dt) (dral : dt) : zip :=
 	match l, n with
 	| [], _ => (dral, None, [])
-	| Zero as bit :: tl, [] => open tl [] (0 :: dbn) (bit :: dral)
+	| Zero as bit :: tl, [] => open tl [] (1 :: dbn) (bit :: dral)
 	| One t as bit :: tl, [] => (dral, Some (CLBT.open (CLBT.make_zip t) dbn), tl)
 	| Zero as bit :: tl, 0 :: tn => open tl tn (0 :: dbn) (bit :: dral)
 	| One _ as bit :: tl, 1 :: tn => open tl tn (0 :: dbn) (bit :: dral)
