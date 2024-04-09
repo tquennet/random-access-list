@@ -465,7 +465,7 @@ Section open.
 Open Scope type_scope.
 
 Definition dt := t.
-Definition zip := dt * option (@CLBT.zip A) * t.
+Definition zip := option (dt * @CLBT.zip A * t).
 
 Inductive valid_dt : nat -> dt -> Prop :=
 	| valid_DNil : valid_dt 0 []
@@ -482,26 +482,26 @@ Inductive valid_dt : nat -> dt -> Prop :=
 
 Fixpoint open (l : t) (n : BinNat.t) (dbn : BinNat.dt) (dral : dt) : zip :=
 	match l, n with
-	| [], _ => (dral, None, [])
-	| Zero as bit :: tl, [] => open tl [] (1 :: dbn) (bit :: dral)
-	| One t as bit :: tl, [] => (dral, Some (CLBT.open (CLBT.make_zip t) dbn), tl)
-	| Zero as bit :: tl, 0 :: tn => open tl tn (0 :: dbn) (bit :: dral)
-	| One _ as bit :: tl, 1 :: tn => open tl tn (0 :: dbn) (bit :: dral)
-	| Zero as bit :: tl, 1 :: tn => open tl tn (1 :: dbn) (bit :: dral)
-	| One _ as bit :: tl, 0 :: tn => open_borrow tl tn (1 :: dbn) (bit :: dral)
+	| [], _ => None
+	| _, [] => None (* unreachable if n canonical *)
+	| One t :: tl, [1] => Some (dral, CLBT.open (CLBT.make_zip t) dbn, tl)
+	| Zero as bit :: tl, 0 :: tn | One _ as bit :: tl, 1 :: tn
+		=> open tl tn (0 :: dbn) (bit :: dral)
+	| One _ as bit :: tl, 0 :: tn => open tl tn (1 :: dbn) (bit :: dral)
+	| Zero as bit :: tl, 1 :: tn => open_borrow tl tn (1 :: dbn) (bit :: dral)
 	end
 with open_borrow (l : t) (n : BinNat.t) (dbn : BinNat.dt) (dral : dt) : zip :=
 	match l, n with
-	| [], _ => (dral, None, [])
-	| _ as bit :: tl, [] => open_borrow tl [] (0 :: dbn) (bit :: dral)
-	| One t :: tl, [1] => (dral, Some (CLBT.open (CLBT.make_zip t) dbn), tl)
+	| [], _ => None
+	| Zero as bit :: tl, [] => open_borrow tl [] (1 :: dbn) (bit :: dral)
+	| One t :: tl, [] => Some (dral, CLBT.open (CLBT.make_zip t) dbn, tl)
 	| Zero as bit :: tl, 0 :: tn | One _ as bit :: tl, 1 :: tn
 		=> open_borrow tl tn (1 :: dbn) (bit :: dral)
-	| One _ as bit :: tl, 0 :: tn => open_borrow tl tn (0 :: dbn) (bit :: dral)
-	| Zero as bit :: tl, 1 :: tn => open tl tn (0 :: dbn) (bit :: dral)
+	| Zero as bit :: tl, 1 :: tn => open_borrow tl tn (0 :: dbn) (bit :: dral)
+	| One _ as bit :: tl, 0 :: tn => open tl tn (0 :: dbn) (bit :: dral)
 	end.
 
-Lemma open_borrow_O : forall l dbn dl, exists rl rdl,
+(*Lemma open_borrow_O : forall l dbn dl, exists rl rdl,
 		open_borrow l [] dbn dl = (rdl, None, rl).
 Proof.
 	intro l.
@@ -512,98 +512,81 @@ Proof.
 	+	apply HR.
 	}
 Qed.
-
-Lemma open_valid : forall l n dbn dl d rdl rcz rl,
-		(rdl, rcz, rl) = open l n dbn dl \/ (rdl, rcz, rl) = open_borrow l n dbn dl ->
+*)
+Lemma open_valid : forall l n dbn dl d rdl rz rl,
+		open l n dbn dl = Some (rdl, rz, rl) \/ open_borrow l n dbn dl = Some (rdl, rz, rl) ->
 		valid d l -> length dbn = d -> valid_dt d dl ->
-		exists rd, valid (S rd) rl /\ valid_dt rd rdl
-			  /\ option_predicate (CLBT.is_valid_zip rd 0) rcz.
-Proof.
+		exists rd, valid (S rd) rl /\ valid_dt rd rdl /\ CLBT.is_valid_zip rd 0 rz.
 	intro l.
-	{	induction l as [|bl tl HR]; intro n; [|destruct bl; (destruct n as [|bn tn]; [|destruct bn])];
-			intros dbn dral d rdl rcz rl Hr Hl Hdbn Hdl; simpl in *;
-			destruct Hr as [Hr|Hr];
+	{	induction l as [|bl tl HR]; intros n dbn dral d rdl rz rl H Hl Hdbn Hdl;
+			[|destruct bl; (destruct n as [|bn tn]; [|destruct bn])]; simpl in *;
+			destruct H as [H|H];
 			assert (Hsdbn : forall b, length (b :: dbn) = S d) by (simpl; rewrite Hdbn; reflexivity);
 			inversion_clear Hl.
-	+	inversion_clear Hr.
+	+	discriminate.
+	+	discriminate.
+	+	discriminate.
+	+	specialize (Hsdbn 0).
+		pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
+		apply (HR _ _ _ (S d) _ _ _ (or_intror H)); assumption.
+	+	specialize (Hsdbn 0).
+		pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
+		apply (HR _ _ _ (S d) _ _ _ (or_introl H)); assumption.
+	+	specialize (Hsdbn 1).
+		pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
+		apply (HR _ _ _ (S d) _ _ _ (or_intror H)); assumption.
+	+	specialize (Hsdbn 1).
+		pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
+		apply (HR _ _ _ (S d) _ _ _ (or_intror H)); assumption.
+	+	specialize (Hsdbn 0).
+		pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
+		apply (HR _ _ _ (S d) _ _ _ (or_intror H)); assumption.
+	+	discriminate.
+	+	symmetry in H; inversion_clear H.
 		exists d.
-		{	split; [|split].
-		+	apply valid_Nil.
-		+	assumption.
-		+	apply OP_None.
-		}
-	+	inversion_clear Hr.
-		exists d.
-		{	split; [|split].
-		+	apply valid_Nil.
-		+	assumption.
-		+	apply OP_None.
-		}
-	+	apply (valid_DCons _ Zero) in Hdl; [|assumption].
-		specialize (Hsdbn 0).
-		apply (HR _ _ _ (S d) _ _ _ (or_introl Hr)); assumption.
-	+	apply (valid_DCons _ Zero) in Hdl; [|assumption].
-		specialize (Hsdbn 0).
-		apply (HR _ _ _ (S d) _ _ _ (or_intror Hr)); assumption.
-	+	apply (valid_DCons _ Zero) in Hdl; [|assumption].
-		specialize (Hsdbn 0).
-		apply (HR _ _ _ (S d) _ _ _ (or_introl Hr)); assumption.
-	+	apply (valid_DCons _ Zero) in Hdl; [|assumption].
-		specialize (Hsdbn 1).
-		apply (HR _ _ _ (S d) _ _ _ (or_intror Hr)); assumption.
-	+	apply (valid_DCons _ Zero) in Hdl; [|assumption].
-		specialize (Hsdbn 1).
-		apply (HR _ _ _ (S d) _ _ _ (or_introl Hr)); assumption.
-	+	apply (valid_DCons _ Zero) in Hdl; [|assumption].
-		specialize (Hsdbn 0).
-		apply (HR _ _ _ (S d) _ _ _ (or_introl Hr)); assumption.
-	+	inversion_clear Hr.
-		exists d.
-		{	split; [|split].
+		{ split; [|split].
 		+	assumption.
 		+	assumption.
-		+	apply OP_Some.
-			apply CLBT.open_valid.
+		+	apply CLBT.open_valid.
 			rewrite Hdbn.
 			apply CLBT.make_zip_valid.
-			inversion_clear H.
+			inversion_clear H0.
 			assumption.
 		}
-	+	apply (valid_DCons _ (One t0)) in Hdl; [|assumption].
-		specialize (Hsdbn 0).
-		apply (HR _ _ _ (S d) _ _ _ (or_intror Hr)); assumption.
-	+	apply (valid_DCons _ (One t0)) in Hdl; [|assumption].
-		specialize (Hsdbn 1).
-		apply (HR _ _ _ (S d) _ _ _  (or_intror Hr)); assumption.
-	+	apply (valid_DCons _ (One t0)) in Hdl; [|assumption].
-		specialize (Hsdbn 0).
-		apply (HR _ _ _ (S d) _ _ _  (or_intror Hr)); assumption.
-	+	apply (valid_DCons _ (One t0)) in Hdl; [|assumption].
-		specialize (Hsdbn 0).
-		apply (HR _ _ _ (S d) _ _ _  (or_introl Hr)); assumption.
+	+	specialize (Hsdbn 1).
+		pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
+		apply (HR _ _ _ (S d) _ _ _ (or_introl H)); assumption.
+	+	specialize (Hsdbn 0).
+		pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
+		apply (HR _ _ _ (S d) _ _ _ (or_introl H)); assumption.
 	+	{	destruct tn.
-		+	inversion_clear Hr.
+		+	symmetry in H; inversion_clear H.
 			exists d.
-			split; [|split]; [assumption|assumption|].
-			apply OP_Some.
-			apply CLBT.open_valid.
-			rewrite Hdbn.
-			apply CLBT.make_zip_valid.
-			inversion_clear H.
-			assumption.
-		+	apply (valid_DCons _ (One t0)) in Hdl; [|assumption].
-			specialize (Hsdbn 1).
-			apply (HR _ _ _ (S d) _ _ _  (or_intror Hr)); assumption.
+			{ split; [|split].
+			  +	assumption.
+			  +	assumption.
+			  +	apply CLBT.open_valid.
+				rewrite Hdbn.
+				apply CLBT.make_zip_valid.
+				inversion_clear H0.
+				assumption.
+			}
+		+	specialize (Hsdbn 0).
+			pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
+			apply (HR _ _ _ (S d) _ _ _ (or_introl H)); assumption.
 		}
+	+	specialize (Hsdbn 1).
+		pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
+		apply (HR _ _ _ (S d) _ _ _ (or_intror H)); assumption.
 	}
 Qed.
 
 Lemma open_valid_init : forall l n rdl rcz rl,
-	  (rdl, rcz, rl) = open l n [] [] -> is_valid l ->
-	  exists d, valid (S d) rl /\ valid_dt d rdl /\ option_predicate (CLBT.is_valid_zip d 0) rcz.
+	  open_borrow l n [] [] = Some (rdl, rcz, rl) -> is_valid l ->
+	  exists d, valid (S d) rl /\ valid_dt d rdl /\ CLBT.is_valid_zip d 0 rcz.
 Proof.
 	intros l n rdl rcz rl Hr Hv.
-	{	apply (open_valid _ _ _ _ 0 _ _ _ (or_introl Hr)).
+	{	apply (open_valid _ _ _ _ 0 _ _ _ (or_intror Hr)).
 	+	assumption.
 	+	reflexivity.
 	+	apply valid_DNil.
@@ -611,7 +594,7 @@ Proof.
 Qed.
 
 
-Lemma open_None : forall (l : t) (n : BinNat.t) rdl rl,
+(*Lemma open_None : forall (l : t) (n : BinNat.t) rdl rl,
 		open l n [] [] = (rdl, None, rl) -> rdl = rev l /\ rl = [].
 Proof.
 	intros l n rdl rl H.
@@ -656,7 +639,7 @@ Proof.
 			rewrite <- app_assoc;
 			assumption.
 	}
-Qed.
+Qed.*)
 
 End open.
 
@@ -689,8 +672,8 @@ Proof.
 Qed.
 
 Definition drop l n :=
-	match open l n [] [] with
-	| (_, Some (t, dt), l) => trim (cons_aux t (DCLBT_to_RAL l dt))
+	match open_borrow l (BinNat.trim n) [] [] with
+	| Some (_, (t, dt), l) => trim (cons_aux t (DCLBT_to_RAL l dt))
 	| _ => []
 	end.
 
@@ -699,25 +682,20 @@ Lemma drop_canonical : forall l n,
 Proof.
 	intros l n H.
 	unfold drop.
-	remember (open l n [] []) as r eqn:Hr.
-	destruct r as [r rl], r as [rdl rzip].
-	assert (Hopen : exists d, valid (S d) rl /\ valid_dt d rdl
-						 /\ option_predicate (CLBT.is_valid_zip d 0) rzip);
-		[apply (open_valid_init _ _ _ _ _ Hr H)|].
-	destruct rzip as [rzip|]; [|apply is_canonical_Empty].
-	destruct rzip as [t dt].
-	destruct Hopen as [d Hopen], Hopen as [Hrl Hopen], Hopen as [Hrdl Hzip].
-	inversion_clear Hzip.
-	inversion_clear H0.
+	pose proof (Hvalid := open_valid_init l (BinNat.trim n)).
+	destruct (open_borrow l (BinNat.trim n) [] []) as [p|]; [|apply is_canonical_Empty].
+	destruct p as [p rl], p as [rdl rzip], rzip as [rt rdt].
+	apply (Hvalid rdl (rt, rdt) rl) in H; [|reflexivity].
 	apply trim_canonical.
+	destruct H as [d H], H as [Hl H], H as [Hdl Hzip], Hzip as [Ht Hdt].
 	apply cons_aux_valid; [|assumption].
 	apply (DCLBT_to_RAL_valid _ _ d); assumption.
 Qed.
 End drop.
 
 Definition lookup l n :=
-	match open l n [] [] with
-	| (_, Some (t, _), _) => Some (CLBT.head t)
+	match open_borrow l (BinNat.trim n) [] [] with
+	| Some (_, (t, _), _) => Some (CLBT.head t)
 	| _ => None
 	end.
 
@@ -747,8 +725,8 @@ Proof.
 Qed.
 
 Definition update l n a :=
-	match open l n [] [] with
-	| (dl, Some (_, dt), l) => plug (One (CLBT.plug (CLBT.singleton a) dt) :: l) dl
+	match open_borrow l (BinNat.trim n) [] [] with
+	| Some (dl, (_, dt), l) => plug (One (CLBT.plug (CLBT.singleton a) dt) :: l) dl
 	| _ => l
 	end.
 
@@ -756,20 +734,15 @@ Lemma update_valid : forall l n a, is_valid l -> is_valid (update l n a).
 Proof.
 	intros l n a H.
 	unfold update.
-	remember (open l n [] []) as r eqn:Hr.
-	destruct r as [r rl], r as [rdl rzip].
-	assert (Hopen : exists d, valid (S d) rl /\ valid_dt d rdl
-						 /\ option_predicate (CLBT.is_valid_zip d 0) rzip);
-		[apply (open_valid_init _ _ _ _ _ Hr H)|].
-	destruct rzip as [rzip|]; [|assumption].
-	destruct rzip as [t dt].
-	destruct Hopen as [d Hopen], Hopen as [Hrl Hopen], Hopen as [Hrdl Hzip].
-	inversion_clear Hzip.
-	inversion_clear H0.
+	pose proof (Hvalid := open_valid_init l (BinNat.trim n)).
+	destruct (open_borrow l (BinNat.trim n) [] []) as [p|]; [|assumption].
+	destruct p as [p rl], p as [rdl rzip], rzip as [rt rdt].
+	apply (Hvalid rdl (rt, rdt) rl) in H; [|reflexivity].
+	destruct H as [d H], H as [Hrl H], H as [Hrdl Hzip], Hzip as [Hrt Hrdt].
 	apply (plug_valid _ _ d); [|assumption].
 	apply valid_one; [|assumption].
-	apply (CLBT.plug_valid _ _ _ 0);
-		[apply CLBT.singleton_valid|assumption].
+	apply (CLBT.plug_valid _ _ d 0); [|assumption].
+	apply CLBT.singleton_valid.
 Qed.
 
 End update.
