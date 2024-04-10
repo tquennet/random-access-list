@@ -1,5 +1,4 @@
 Require Import Lists.List FunInd .
-(*Require Import Init.Nat.*)
 Require Import utils.Utils.
 Import ListNotations.
 
@@ -8,24 +7,29 @@ Open Scope bin_nat_scope.
 
 (********************************************************************************)
 (*	Notations are defined in bin_nat_scope.										*)
-(*	BN == the type of binary numbers.											*)
-(*	BN_canonical == a predicate identifying canonical BinNat					*)
-(*		BN_zero  == the BN representing 0										*)
-(*			+: BN_canonical_0 : BN_canonical									*)
-(*		BN_inc n == the successor of n											*)
-(*			+: BN_canonical_inc n : BN_canonical n -> N_canonical (BN_inc n)	*)
+(*	t == the type of binary numbers (lsb first).								*)
+(*	dt == the type of binary numbers (msb first).								*)
+(*	is_canonical == a predicate identifying canonical BinNat					*)
+(*		zero  == a binary number representing 0									*)
+(*			+: canonical_0 : is_canonical zero									*)
+(*		inc n == the successor of n												*)
+(*			+: canonical_inc n : is_canonical n -> is_canonical (inc n)			*)
 (*																				*)
 (*	**	Unary operator:															*)
-(*		BN_to_nat n == n as native coq nat										*)
-(*			   BN_dec n == the predecessor of n									*)
-(*			BN_trim n == the canonical version of n, preserving BN_to_nat		*)
+(*			 to_nat n == n as native coq nat									*)
+(*				dec n == the predecessor of n									*)
+(*			   trim n == the canonical version of n								*)
 (*	**	Binary operators:														*)
 (*		 sub n m, n - m == the difference between n and m						*)
 (*	** Lemmes:																	*)
-(*		BN_dec_canonical : forall l, BN_canonical l -> BN_canonical (BN_dec l)	*)
-(*		BN_trim_canonical : forall l, BN_canonical (BN_trom l)					*)
-(*		BN_inc_dec : forall l, BN_canonical n -> dec (inc n) = n				*)
-(*		BN_sub_canonical : forall n m, BN_canonical (n - m)						*)
+(*		trim_canonical : forall n, is_canonical (trim n)						*)
+(*		dec_canonical : forall n, is_canonical n -> is_canonical (dec n)		*)
+(*		sub_canonical : forall n m, is_canonical (n - m)						*)
+(*																				*)
+(*		trim_to_nat : forall n, to_nat n = to_nat (trim n)						*)
+(*		inc_S : forall n, to_nat (inc n) = S (to_nat n)							*)
+(*		dec_pred : forall n, to_nat (dec n) = pred (to_nat n)					*)
+(*		sub_minus : forall n m, to_nat (n - m) = (to_nat n - to_nat m)%nat		*)
 (********************************************************************************)
 
 Variant Bit := Zero | One.
@@ -42,25 +46,8 @@ Fixpoint to_nat n : nat :=
 	| 1 :: t => S (2 * to_nat t)
 	end.
 
-Definition nat_equiv n m := to_nat n = to_nat m.
-
-Notation "n === m" := (nat_equiv n m) (at level 70, no associativity).
-
-Lemma to_nat_trail_0 : forall n, n ++ [0] === n.
-Proof.
-	intro n.
-	unfold nat_equiv.
-	{	induction n as [|bn tn HR]; [|destruct bn]; simpl in *.
-	+	reflexivity.
-	+	rewrite HR.
-		reflexivity.
-	+	rewrite HR.
-		reflexivity.
-	}
-Qed.
-
 Definition zero : t := [].
-Notation def_zero := (option_default []).
+Notation def_zero := (option_default zero).
 
 Fixpoint inc n :=
 	match n with
@@ -139,7 +126,7 @@ Proof.
 	destruct b0; assumption.
 Qed.
 
-Lemma is_canonical_struct_tl : forall b n, is_canonical_struct (b :: n) -> is_canonical_struct n.
+Local Lemma is_canonical_struct_tl : forall b n, is_canonical_struct (b :: n) -> is_canonical_struct n.
 Proof.
 	intros b n H.
 	{	destruct n.
@@ -279,27 +266,6 @@ Functional Scheme dec_aux_ind := Induction for dec_aux Sort Prop.
 
 Definition dec n := def_zero (dec_aux n).
 
-(*Lemma nat_inc_dec : forall n, to_nat (dec (inc n)) = to_nat n.
-Proof.
-	intro n.
-	unfold dec.
-	{	enough (H : option_map to_nat (dec_aux (inc n)) = Some (to_nat n)).
-	+	destruct (dec_aux (inc n)); [|discriminate].
-		simpl.
-		inversion_clear H.
-		reflexivity.
-	+	{	functional induction (inc n).
-		+	reflexivity.
-		+	destruct t0; reflexivity.
-		+	simpl.
-			destruct (dec_aux (inc t0)); [|discriminate].
-			simpl in *.
-			inversion_clear IHl.
-			reflexivity.
-		}
-	}
-Qed.*)
-
 Lemma inc_dec : forall (n : t),
 	is_canonical n -> dec (inc n) = n.
 Proof.
@@ -322,7 +288,7 @@ Proof.
 	}
 Qed.
 
-Lemma dec_aux_None : forall n, dec_aux n = None <-> to_nat n = O.
+Local Lemma dec_aux_None : forall n, dec_aux n = None <-> to_nat n = O.
 Proof.
 	intro n.
 	{	split; intro H; functional induction (dec_aux n); simpl in *.
@@ -407,7 +373,7 @@ Definition sub n m :=
 
 Notation "n - m" := (sub n m) : bin_nat_scope.	
 		
-Lemma sub_aux_borrow_app : forall n m a b,
+Local Lemma sub_aux_borrow_app : forall n m a b,
 		sub_aux n m (b ++ a) = option_map (rev_append a) (sub_aux n m b) /\
 		sub_borrow n m (b ++ a) = option_map (rev_append a) (sub_borrow n m b).
 Proof.
@@ -437,13 +403,13 @@ Proof.
 	+	apply (HR tm a (1 :: b)).
 	}
 Qed.
-Lemma sub_aux_app : forall n m a, sub_aux n m a = option_map (rev_append a) (sub_aux n m []).
+Local Lemma sub_aux_app : forall n m a, sub_aux n m a = option_map (rev_append a) (sub_aux n m []).
 Proof.
 	intros n m a.
 	rewrite <- (app_nil_l a).
 	apply sub_aux_borrow_app.
 Qed.
-Lemma sub_borrow_app : forall n m a, sub_borrow n m a = option_map (rev_append a) (sub_borrow n m []).
+Local Lemma sub_borrow_app : forall n m a, sub_borrow n m a = option_map (rev_append a) (sub_borrow n m []).
 Proof.
 	intros n m a.
 	rewrite <- (app_nil_l a).
@@ -458,7 +424,7 @@ Proof.
 	apply trim_canonical.
 Qed.
 
-Lemma sub_aux_O_None : forall n a,
+Local Lemma sub_aux_O_None : forall n a,
 		sub_borrow n [] a = None <-> to_nat n = O.
 Proof.
 	intro n.
@@ -478,7 +444,7 @@ Proof.
 	}
 Qed.
 
-Lemma pred_double_O : forall x, (pred (2 * x) = 0 -> x = 0)%nat.
+Local Lemma pred_double_O : forall x, (pred (2 * x) = 0 -> x = 0)%nat.
 Proof.
 	intros x H.
 	destruct x; [reflexivity|].
@@ -486,7 +452,7 @@ Proof.
 	discriminate.
 Qed.
 
-Lemma sub_aux_None : forall n m a,
+Local Lemma sub_aux_None : forall n m a,
 		is_canonical m ->
 		(m <> [] -> sub_aux n m a = None <-> (S (to_nat n) - to_nat m = 0)%nat)
 		/\ (sub_borrow n m a = None <-> (to_nat n - to_nat m = 0)%nat).
@@ -608,7 +574,7 @@ Proof.
 Qed.
 
 
-Lemma sub_aux_Some : forall n m a x,
+Local Lemma sub_aux_Some : forall n m a x,
 		is_canonical m ->
 		(sub_aux n m a = Some (rev_append a x) -> (to_nat n - to_nat m = to_nat x)%nat)
 		/\ (sub_borrow n m a = Some (rev_append a x) -> (to_nat n - S (to_nat m) = to_nat x)%nat).
@@ -781,7 +747,7 @@ Proof.
 Qed.
 
 
-Lemma sub_n_m : forall n m, to_nat (n - m) = (to_nat n - to_nat m)%nat.
+Theorem sub_minus : forall n m, to_nat (n - m) = (to_nat n - to_nat m)%nat.
 Proof.
 	intros n m.
 	unfold sub.
