@@ -60,95 +60,62 @@ Proof.
 	}
 Qed.
 
-Theorem open_sub_Some : forall (l : @RAL.t A) d n dn dl rdl t dt rl,
-		RAL.valid d l -> length dn <= d ->
-		(RAL.open l n dn dl = (rdl, Some(t, dt), rl) ->
-			(BinNat.sub_aux (RAL.strip l) n dn) = Some(CLBT.dtrace dt ++ 0 :: RAL.strip rl))
-		/\ (RAL.open_borrow l n dn dl = (rdl, Some(t, dt), rl) ->
-			(BinNat.sub_borrow (RAL.strip l) n dn) = Some(CLBT.dtrace dt ++ 0 :: RAL.strip rl)).
-Proof.
-	intros l.
-	{	induction l as [|bl tl HR]; intros d n dn dl rdl t dt rl Hl Hdn;
-			[|destruct bl; (destruct n as [|bn tn]; [|destruct bn])];
-			split; intro He; simpl in *;
-			apply le_n_S in Hdn as Hsdn.
-	+	inversion_clear He.
-	+	inversion_clear He.
-	+	inversion_clear Hl.
-		apply (HR (S d)) in He; assumption.
-	+	pose proof (Hc := RAL.open_borrow_O tl (0 :: dn) (RAL.Zero :: dl)).
-		destruct Hc as [crl Hc], Hc as [crdl Hc].
-		rewrite Hc in He.
-		discriminate.
-	+	inversion_clear Hl.
-		apply (HR (S d)) in He; assumption.
-	+	inversion_clear Hl.
-		apply (HR (S d)) in He; assumption.
-	+	inversion_clear Hl.
-		apply (HR (S d)) in He; assumption.
-	+	inversion_clear Hl.
-		apply (HR (S d)) in He; assumption.
-	+	inversion He.
-		replace dt with (snd (CLBT.open (CLBT.make_zip t0) dn))
-			by (apply (f_equal snd) in H1; assumption).
-		inversion_clear Hl.
-		inversion_clear H.
-		{	rewrite (CLBT.open_trace _ d d), !rev_append_rev, app_nil_r.
-		+	reflexivity.
-		+	apply CLBT.make_zip_valid.
-			assumption.
-		+	assumption.
-		}
-	+	pose proof (Hc := RAL.open_borrow_O tl (0 :: dn) (RAL.One t0 :: dl)).
-		destruct Hc as [crl Hc], Hc as [crdl Hc].
-		rewrite Hc in He.
-		discriminate.
-	+	inversion_clear Hl.
-		apply (HR (S d)) in He; assumption.
-	+	inversion_clear Hl.
-		apply (HR (S d)) in He; assumption.
-	+	inversion_clear Hl.
-		apply (HR (S d)) in He; assumption.
-	+	destruct tn; [|inversion_clear Hl; apply (HR (S d)) in He; assumption].
-		inversion He.
-		replace dt with (snd (CLBT.open (CLBT.make_zip t0) dn))
-			by (apply (f_equal snd) in H1; assumption).
-		inversion_clear Hl.
-		inversion_clear H.
-		{	rewrite (CLBT.open_trace _ d d), !rev_append_rev, app_nil_r.
-		+	reflexivity.
-		+	apply CLBT.make_zip_valid.
-			assumption.
-		+	assumption.
-		}
-	}
-Qed.
+Definition open_sub_map : (@RAL.zip A) -> option BinNat.t
+  := option_map (fun '(_, (_, dt), rl) => CLBT.dtrace dt ++ 0 :: RAL.strip rl).
 
-Theorem open_sub_None : forall (l : @RAL.t A) n dn dl rdl rl,
-		(RAL.open l n dn dl = (rdl, None, rl) ->
-			BinNat.sub_aux (RAL.strip l) n dn = None)
-		/\ (RAL.open_borrow l n dn dl = (rdl, None, rl) ->
-			BinNat.sub_borrow (RAL.strip l) n dn = None).
+Theorem open_sub_aux : forall l d n dn dl,
+		RAL.valid d l -> length dn <= d ->
+		(open_sub_map (RAL.open l n dn dl) = BinNat.sub_aux (RAL.strip l) n dn)
+		/\ (open_sub_map (RAL.open_borrow l n dn dl) = BinNat.sub_borrow (RAL.strip l) n dn).
 Proof.
 	intro l.
-	{	induction l as [|bl tl HR]; [|destruct bl]; intros n dn dl rdl rl;
-			destruct n as [|bn tn]; split; intro H; simpl in *.
+	{	induction l as [|bl tl HR]; intros d n dn dl Hl Hd;
+			[|destruct bl; (destruct n as [|bn tn]; [|destruct bn])];
+			split; apply le_n_S in Hd as Hsd; simpl in *.
 	+	reflexivity.
 	+	reflexivity.
 	+	reflexivity.
+	+	inversion_clear Hl.
+		apply (HR (S d) [] (1 :: dn)); assumption.
+	+	inversion_clear Hl.
+		apply (HR (S d) tn (0 :: dn)); assumption.
+	+	inversion_clear Hl.
+		apply (HR (S d) tn (1 :: dn)); assumption.
+	+	inversion_clear Hl.
+		apply (HR (S d) tn (1 :: dn)); assumption.
+	+	inversion_clear Hl.
+		apply (HR (S d) tn (0 :: dn)); assumption.
 	+	reflexivity.
-	+	apply HR in H.
-		assumption.
-	+	reflexivity.
-	+	destruct bn; apply HR in H; assumption.
-	+	destruct bn; apply HR in H; assumption.
-	+	discriminate.
-	+	reflexivity.
-	+	destruct bn; apply HR in H; assumption.
-	+	destruct bn; [apply HR in H; assumption|].
-		destruct tn; [discriminate|].
-		apply HR in H.
-		assumption.
+	+	pose proof (Hopen := CLBT.open_trace dn d d (CLBT.make_zip t)).
+		destruct (CLBT.open (CLBT.make_zip t) dn).
+		cbn in Hopen.
+		inversion_clear Hl; inversion_clear H.
+		{	rewrite Hopen.
+		+	rewrite !rev_append_rev, app_nil_r.
+			reflexivity.
+		+	split; [assumption|apply CLBT.valid_DRoot].
+		+	assumption.
+		}
+	+	inversion_clear Hl.
+		apply (HR (S d) tn (1 :: dn)); assumption.
+	+	inversion_clear Hl.
+		apply (HR (S d) tn (0 :: dn)); assumption.
+	+	{	destruct tn; simpl in *.
+		+	pose proof (Hopen := CLBT.open_trace dn d d (CLBT.make_zip t)).
+			destruct (CLBT.open (CLBT.make_zip t) dn).
+			cbn in Hopen.
+			inversion_clear Hl; inversion_clear H.
+			{	rewrite Hopen.
+				+	rewrite !rev_append_rev, app_nil_r.
+					reflexivity.
+				+	split; [assumption|apply CLBT.valid_DRoot].
+				+	assumption.
+			}
+		+	inversion_clear Hl.
+			apply (HR (S d) (b :: tn) (0 :: dn)); assumption.
+		}
+	+	inversion_clear Hl.
+		apply (HR (S d) tn (1 :: dn)); assumption.
 	}
 Qed.
 
@@ -165,23 +132,24 @@ Proof.
 	}
 Qed.
 
-Theorem drop_sub : forall (l : @RAL.t A) n,
+Theorem drop_sub_strip : forall (l : @RAL.t A) n,
 		RAL.is_valid l ->
 		RAL.strip (RAL.drop l n) = BinNat.sub (RAL.strip l) n.
 Proof.
 	intros l n H.
 	unfold BinNat.sub, RAL.drop.
-	destruct (RAL.open l n [] []) as [p rl] eqn:He, p as [drl zip].
-	{	destruct zip as [zip|].
-	+	destruct zip as [t dt].
-		pose proof (Ho := open_sub_Some l 0 n [] []).
-		apply Ho in He; [| assumption | apply le_0_n].
-		rewrite trim_strip, RAL.cons_aux_inc_strip, DCLBT_to_RAL_strip, He.
+	pose proof (Hopen := open_sub_aux l 0 (BinNat.trim n) [] []).
+	destruct Hopen as [_ Hopen]; [assumption| apply le_n|].
+	{	destruct (RAL.open_borrow l (BinNat.trim n) [] []);
+			destruct (BinNat.sub_borrow (RAL.strip l) (BinNat.trim n) []);
+			simpl in *.
+	+	destruct p as [p rl], p as [rdl zip], zip as [t dt].
+		inversion_clear Hopen.
+		rewrite trim_strip, RAL.cons_aux_inc_strip, DCLBT_to_RAL_strip.
 		reflexivity.
-	+	pose proof (Ho := open_sub_None l n [] []).
-		apply Ho in He.
-		rewrite He.
-		reflexivity.
+	+	discriminate.
+	+	discriminate.
+	+	reflexivity.
 	}
 Qed.
 
