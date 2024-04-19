@@ -1,4 +1,4 @@
-Require Import Lists.List FunInd .
+Require Import Lists.List FunInd.
 Require Import Init.Nat.
 Require Import utils.Utils.
 Import ListNotations.
@@ -99,7 +99,7 @@ Proof.
 	apply canonical_inc, canonical_0.
 Qed.
 
-(*Lemma canonical_unicity : forall n m,
+Lemma canonical_unicity : forall n m,
 	is_canonical n -> is_canonical m ->
 	to_nat n = to_nat m ->
 	n = m.
@@ -118,7 +118,7 @@ Proof.
 		injection Heq as Heq.
 		assumption.
 	}
-Qed.*)
+Qed.
 
 Fixpoint is_canonical_struct_fix b n :=
 	match n with
@@ -396,6 +396,14 @@ Qed.
 
 Definition uc_Gt := uncurry (uncurry Gt).
 Definition uc_Lt := uncurry (uncurry Lt).
+
+Lemma uc_Lt_inj : forall a b, uc_Lt a = uc_Lt b -> a = b.
+Proof.
+	intros a b H.
+	destruct a as [a1 a3], a1, b as [b1 b3], b1.
+	inversion_clear H.
+	reflexivity.
+Qed.
 
 Fixpoint compare_empty (n : t) (dn an : dt) :=
 	match n with
@@ -800,7 +808,7 @@ Proof.
 	apply compare_decomp_Lt in H; assumption.
 Qed.
 
-Lemma compare_borrow_eq : forall n m dn dm an am,
+Lemma compare_borrow_Eq : forall n m dn dm an am,
 		Some Eq <> compare_borrow_n n m dn dm an am
 		/\ Some Eq <> compare_borrow_m n m dn dm an am.
 Proof.
@@ -823,7 +831,7 @@ Proof.
 	+	destruct tm; [discriminate| apply HR].
 	}
 Qed.
-Lemma compare_aux_decomp_eq : forall n m dn dm an am,
+Lemma compare_aux_decomp_Eq : forall n m dn dm an am,
 		Some Eq = compare_aux n m dn dm an am <-> n = m.
 Proof.
 	intro n.
@@ -847,12 +855,12 @@ Proof.
 	+	apply HR.
 		inversion_clear H.
 		reflexivity.
-	+	apply compare_borrow_eq in H.
+	+	apply compare_borrow_Eq in H.
 		contradiction.
 	+	discriminate.
 	+	discriminate.
 	+	discriminate.
-	+	apply compare_borrow_eq in H.
+	+	apply compare_borrow_Eq in H.
 		contradiction.
 	+	discriminate.
 	+	apply HR in H.
@@ -864,15 +872,15 @@ Proof.
 	}
 Qed.
 
-Lemma compare_eq : forall n m,
+Lemma compare_decomp_Eq : forall n m,
 		Eq = compare n m <-> (trim n) = (trim m).
 Proof.
 	intros n m.
 	{	split; intro H.
 	+	apply compare_some in H.
-		apply compare_aux_decomp_eq in H.
+		apply compare_aux_decomp_Eq in H.
 		assumption.
-	+	apply (compare_aux_decomp_eq (trim n) (trim m) [] [] [] []) in H.
+	+	apply (compare_aux_decomp_Eq (trim n) (trim m) [] [] [] []) in H.
 		unfold compare.
 		rewrite <- H.
 		reflexivity.
@@ -891,7 +899,7 @@ Theorem ltb_nat : forall n m, n <? m = (to_nat n <? to_nat m)%nat.
 Proof.
 	intros n m.
 	symmetry.
-	pose proof (Heq := compare_eq n m).
+	pose proof (Heq := compare_decomp_Eq n m).
 	pose proof (Hlt := compare_decomp_Lt n m).
 	pose proof (Hgt := compare_decomp_Gt n m).
 	unfold ltb.
@@ -938,7 +946,7 @@ Theorem sub_minus : forall n m, to_nat (n - m) = (to_nat n - to_nat m)%nat.
 Proof.
 	intros n m.
 	unfold sub.
-	pose proof (Heq := compare_eq n m).
+	pose proof (Heq := compare_decomp_Eq n m).
 	pose proof (Hlt := ltb_nat n m).
 	pose proof (Hgt := compare_decomp_Gt n m).
 	unfold ltb in Hlt.
@@ -966,6 +974,42 @@ Proof.
 Qed.
 
 
+Theorem compare_eq : forall x n m, (trim n) = (trim m) <-> compare x n = compare x m.
+Proof.
+	intros x n m.
+	{	split; intro H.
+	+	unfold compare.
+		rewrite H.
+		reflexivity.
+	+	pose proof (Heqn := proj1 (compare_decomp_Eq x n)).
+		pose proof (Heqm := proj1 (compare_decomp_Eq x m)).
+		pose proof (Hltn := compare_decomp_Lt x n).
+		pose proof (Hltm := compare_decomp_Lt x m).
+		pose proof (Hgtn := compare_decomp_Gt x n).
+		pose proof (Hgtm := compare_decomp_Gt x m).
+		{	destruct (compare x n) as [|tn dn an | tn dn an],
+				(compare x m) as [|tm dm am | tm dm am]; try discriminate.
+		+	rewrite <- Heqn, Heqm; reflexivity.
+		+	destruct (Hltn tn dn an) as [Hnl Hnz Hnv]; [reflexivity|].
+			destruct (Hltm tm dm am) as [Hml Hmz Hmv]; [reflexivity|].
+			apply canonical_unicity; [apply trim_canonical..|].
+			rewrite Hnz, Hmz.
+			inversion_clear H.
+			reflexivity.
+		+	destruct (Hgtn tn dn an) as [Hnl Hnz Hnv]; [reflexivity|].
+			destruct (Hgtm tm dm am) as [Hml Hmz Hmv]; [reflexivity|].
+			apply canonical_unicity; [apply trim_canonical..|].
+			rewrite <- plus_Sn_m in Hnv, Hmv.
+			apply (f_equal (fun x => x - S (rev_nat an))%nat) in Hnv.
+			apply (f_equal (fun x => x - S (rev_nat am))%nat) in Hmv.
+			rewrite PeanoNat.Nat.add_comm, PeanoNat.Nat.add_sub in Hnv.
+			rewrite PeanoNat.Nat.add_comm, PeanoNat.Nat.add_sub in Hmv.
+			rewrite Hnv, Hmv.
+			inversion_clear H.
+			reflexivity.
+		}
+	}
+Qed.
 (*Fixpoint sub_aux n m acc :=
 	match n, m with
 	| [], _ => None

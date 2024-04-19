@@ -60,62 +60,108 @@ Proof.
 	}
 Qed.
 
-Definition open_sub_map : (@RAL.zip A) -> option BinNat.t
-  := option_map (fun '(_, (_, dt), rl) => CLBT.dtrace dt ++ 0 :: RAL.strip rl).
+Definition open_compare_map :=
+	option_map (fun '((dl, _, tl, dn) : ((@RAL.dt A) * (@CLBT.t A) * (@RAL.t A) * BinNat.t))
+		=> (RAL.strip dl, RAL.strip tl, dn)).
+Definition compare_forget comp :=
+	match comp with
+	| BinNat.Gt tn dn an => Some (dn, tn, an)
+	| _ => None
+	end.
+Definition compare_forget_opt := option_join compare_forget.
 
-Theorem open_sub_aux : forall l d n dn dl,
-		RAL.valid d l -> length dn <= d ->
-		(open_sub_map (RAL.open l n dn dl) = BinNat.sub_aux (RAL.strip l) n dn)
-		/\ (open_sub_map (RAL.open_borrow l n dn dl) = BinNat.sub_borrow (RAL.strip l) n dn).
+Lemma open_borrow_compare_empty : forall l an dl,
+		RAL.is_canonical_struct (length dl) l -> l <> [] ->
+		open_compare_map (RAL.open_borrow l [] an dl) =
+		compare_forget (BinNat.uc_Gt (BinNat.compare_empty (RAL.strip l) (RAL.strip dl) an)).
 Proof.
 	intro l.
-	{	induction l as [|bl tl HR]; intros d n dn dl Hl Hd;
-			[|destruct bl; (destruct n as [|bn tn]; [|destruct bn])];
-			split; apply le_n_S in Hd as Hsd; simpl in *.
+	{	induction l as [|bl tl HR]; [|destruct bl];
+			intros an dl Hl He; simpl.
+	+	contradiction.
+	+	apply proj2 in Hl as Hvl.
+		assert (tl <> []) by (destruct tl; discriminate).
+		apply RAL.is_canonical_struct_tl in Hl.
+		apply HR; assumption.
 	+	reflexivity.
-	+	reflexivity.
-	+	reflexivity.
-	+	inversion_clear Hl.
-		apply (HR (S d) [] (1 :: dn)); assumption.
-	+	inversion_clear Hl.
-		apply (HR (S d) tn (0 :: dn)); assumption.
-	+	inversion_clear Hl.
-		apply (HR (S d) tn (1 :: dn)); assumption.
-	+	inversion_clear Hl.
-		apply (HR (S d) tn (1 :: dn)); assumption.
-	+	inversion_clear Hl.
-		apply (HR (S d) tn (0 :: dn)); assumption.
-	+	reflexivity.
-	+	pose proof (Hopen := CLBT.open_trace dn d d (CLBT.make_zip t)).
-		destruct (CLBT.open (CLBT.make_zip t) dn).
-		cbn in Hopen.
-		inversion_clear Hl; inversion_clear H.
-		{	rewrite Hopen.
-		+	rewrite !rev_append_rev, app_nil_r.
-			reflexivity.
-		+	split; [assumption|apply CLBT.valid_DRoot].
-		+	assumption.
+	}
+Qed.
+
+Lemma open_aux_compare_borrow : forall l n dn dl an am,
+		RAL.is_canonical_struct (length dl) l ->
+	 	open_compare_map (RAL.open_aux l n an dl) =
+		compare_forget_opt (BinNat.compare_borrow_m (RAL.strip l) n (RAL.strip dl) dn an am)
+		/\ open_compare_map (RAL.open_borrow l n an dl) =
+		compare_forget_opt (BinNat.compare_borrow_n (RAL.strip l) n (RAL.strip dl) dn an am).
+Proof.
+	intro l.
+	{	induction l as [|bl tl HR]; intros n dn dl an am Hl;
+			[|destruct bl; apply RAL.is_canonical_struct_tl in Hl as Htl];
+			(destruct n as [|bn tn]; [|destruct bn]);
+			split; simpl; try reflexivity.
+	+	destruct BinNat.compare_empty as [r1 r3], r1; reflexivity.
+	+	apply proj2 in Hl as Hl2.
+		assert (tl <> []) by (destruct tl; discriminate).
+		apply open_borrow_compare_empty; assumption.
+	+	apply HR; assumption.
+	+	apply HR; assumption.
+	+	apply HR; assumption.
+	+	apply HR; assumption.
+	+	destruct tl as [|bl tl]; [|destruct bl]; reflexivity.
+	+	apply HR; assumption.
+	+	{	destruct tl as [|bl tl].
+			+	simpl.
+				destruct tn; [reflexivity|].
+				destruct BinNat.compare_empty as [r1 r3], r1.
+				reflexivity.
+			+	destruct bl; apply HR; assumption.
 		}
-	+	inversion_clear Hl.
-		apply (HR (S d) tn (1 :: dn)); assumption.
-	+	inversion_clear Hl.
-		apply (HR (S d) tn (0 :: dn)); assumption.
-	+	{	destruct tn; simpl in *.
-		+	pose proof (Hopen := CLBT.open_trace dn d d (CLBT.make_zip t)).
-			destruct (CLBT.open (CLBT.make_zip t) dn).
-			cbn in Hopen.
-			inversion_clear Hl; inversion_clear H.
-			{	rewrite Hopen.
-				+	rewrite !rev_append_rev, app_nil_r.
-					reflexivity.
-				+	split; [assumption|apply CLBT.valid_DRoot].
-				+	assumption.
-			}
-		+	inversion_clear Hl.
-			apply (HR (S d) (b :: tn) (0 :: dn)); assumption.
-		}
-	+	inversion_clear Hl.
-		apply (HR (S d) tn (1 :: dn)); assumption.
+	+	destruct tn; [reflexivity|].
+		apply HR; assumption.
+	+	destruct tl as [|bl tl]; [reflexivity|].
+		destruct bl; apply HR; assumption.
+	}
+Qed.
+
+Theorem open_borrow_compare_aux : forall l n dn dl an am,
+		RAL.is_canonical_struct (length dl) l ->
+	 	open_compare_map (RAL.open_borrow l n an dl) =
+		compare_forget_opt (BinNat.compare_aux (RAL.strip l) n (RAL.strip dl) dn an am).
+Proof.
+	intro l.
+	{	induction l as [|bl tl HR]; intros n dn dl an am Hl;
+			[|destruct bl; apply RAL.is_canonical_struct_tl in Hl as Htl];
+			(destruct n as [|bn tn]; [|destruct bn]);
+			simpl; try reflexivity.
+	+	destruct BinNat.compare_empty as [r1 r3], r1.
+		reflexivity.
+	+	apply proj2 in Hl.
+		assert (tl <> []) by (destruct tl; discriminate).
+		apply open_borrow_compare_empty; assumption.
+	+	apply HR; assumption.
+	+	apply open_aux_compare_borrow; assumption.
+	+	apply open_aux_compare_borrow; assumption.
+	+	apply HR; assumption.
+	}
+Qed.
+
+Theorem open_borrow_compare : forall l n,
+		RAL.is_valid l ->
+	 	open_compare_map (RAL.open_borrow (RAL.trim l) (BinNat.trim n) [] []) =
+		compare_forget (BinNat.compare (RAL.strip l) n).
+Proof.
+	intros l n Hl.
+	unfold BinNat.compare.
+	pose proof (Hnone := BinNat.compare_aux_none (RAL.strip (RAL.trim l)) (BinNat.trim n) [] [] [] []).
+	pose proof (H := open_borrow_compare_aux (RAL.trim l) (BinNat.trim n) [] [] [] []).
+	rewrite <- trim_strip.
+	{	destruct BinNat.compare_aux; simpl.
+	+	apply H.
+		apply RAL.is_canonical_struct_equiv, RAL.trim_canonical.
+		assumption.
+	+	exfalso.
+		rewrite trim_strip in Hnone.
+		apply Hnone; [apply BinNat.trim_canonical..|reflexivity].
 	}
 Qed.
 
@@ -136,19 +182,33 @@ Theorem drop_sub_strip : forall (l : @RAL.t A) n,
 		RAL.is_valid l ->
 		RAL.strip (RAL.drop l n) = BinNat.sub (RAL.strip l) n.
 Proof.
-	intros l n H.
-	unfold BinNat.sub, RAL.drop.
-	pose proof (Hopen := open_sub_aux l 0 (BinNat.trim n) [] []).
-	destruct Hopen as [_ Hopen]; [assumption| apply le_n|].
-	{	destruct (RAL.open_borrow l (BinNat.trim n) [] []);
-			destruct (BinNat.sub_borrow (RAL.strip l) (BinNat.trim n) []);
-			simpl in *.
-	+	destruct p as [p rl], p as [rdl zip], zip as [t dt].
-		inversion_clear Hopen.
-		rewrite trim_strip, RAL.cons_aux_inc_strip, DCLBT_to_RAL_strip.
-		reflexivity.
-	+	discriminate.
-	+	discriminate.
+	intros l n Hl.
+	unfold BinNat.sub, RAL.drop, RAL.open.
+	pose proof (H := open_borrow_compare l n Hl).
+	pose proof (Hv := RAL.open_aux_valid (RAL.trim l) (BinNat.trim n) [] []).
+	{	destruct RAL.open_borrow as [p|] eqn:He, BinNat.compare as [| |tn dn an];
+			simpl in*; try discriminate.
+	+	destruct p as [p rn], p as [p rtl], p as [rdl t].
+		pose proof (Hopen := CLBT.open_trace rn (length rn) (length rn) (CLBT.make_zip t)).
+		destruct CLBT.open as [ot odt].
+		rewrite trim_strip, RAL.cons_aux_inc_strip.
+		repeat f_equal.
+		simpl in Hopen.
+		{	destruct (Hv rdl t rtl rn) as [Ht Hrdl Hrtl Hlen].
+		+	right.
+			reflexivity.
+		+	apply RAL.trim_valid.
+			assumption.
+		+	apply RAL.valid_DNil.
+		+	rewrite DCLBT_to_RAL_strip.
+			pose proof (le_n (length rn)).
+			rewrite Hopen; [|split; [rewrite Hlen; assumption|apply CLBT.valid_DRoot]
+						   |assumption].
+			inversion_clear H.
+			rewrite !rev_append_rev, app_nil_r.
+			reflexivity.
+		}
+	+	reflexivity.
 	+	reflexivity.
 	}
 Qed.

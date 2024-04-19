@@ -25,7 +25,13 @@ End Option.
 
 Section Options.
 
-Context {A B C : Type} (P : B -> Prop) (f g : A -> B) (h : B -> C) (i : A -> A).
+Context {A B C : Type} (P : B -> Prop) (f g : A -> B) (h : B -> C) (i : A -> A) (j : A -> option B).
+
+Definition option_join o :=
+	match o with
+	| Some a => j a
+	| None => None
+	end.
 
 Lemma option_map_map : forall o,
 		option_map h (option_map f o) = option_map (fun x => h (f x)) o.
