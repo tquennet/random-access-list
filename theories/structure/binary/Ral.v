@@ -511,7 +511,6 @@ Section open.
 Open Scope type_scope.
 
 Definition dt := t.
-Definition zip := option (dt * @CLBT.zip A * t).
 
 Inductive valid_dt : nat -> dt -> Prop :=
 	| valid_DNil : valid_dt 0 []
@@ -535,19 +534,27 @@ Qed.
 		dbn = rev (en ++ [1] - (size el)) pour open_borrow
 *)
 
-Record valid_decomp (rdl : dt) (rt : CLBT) (rtl : t) (rn : BinNat.t) :=
+Record zipper := mkZip
 {
-	dec_rt : CLBT.is_valid (length (rdl)) rt;
-	dec_rdl : valid_dt (length rdl) rdl;
-	dec_rtl : valid (S (length rdl)) rtl;
-	del_rn : length rn = length rdl;
+	zip_tl : t;
+	zip_dl : dt;
+	zip_tree : CLBT;
+	zip_nb : BinNat.dt;
+}.
+
+Record valid_zipper (zip : zipper) :=
+{
+	dec_rtl : valid (S (length zip.(zip_dl))) zip.(zip_tl);
+	dec_rdl : valid_dt (length zip.(zip_dl)) zip.(zip_dl);
+	dec_rt : CLBT.is_valid (length zip.(zip_dl)) zip.(zip_tree);
+	del_rn : length zip.(zip_nb) = length zip.(zip_dl);
 }.
 
 Fixpoint open_aux (l : t) (n : BinNat.t) (dbn : BinNat.dt) (dral : dt) :=
 	match l, n with
 	| [], _ => None
 	| _, [] => None (* unreachable if n canonical *)
-	| One t :: tl, [1] => Some (dral, t, tl, dbn)
+	| One t :: tl, [1] => Some (mkZip tl dral t dbn)
 	| Zero as bit :: tl, 0 :: tn | One _ as bit :: tl, 1 :: tn
 		=> open_aux tl tn (0 :: dbn) (bit :: dral)
 	| One _ as bit :: tl, 0 :: tn => open_aux tl tn (1 :: dbn) (bit :: dral)
@@ -557,83 +564,72 @@ with open_borrow (l : t) (n : BinNat.t) (dbn : BinNat.dt) (dral : dt) :=
 	match l, n with
 	| [], _ => None
 	| Zero as bit :: tl, [] => open_borrow tl [] (1 :: dbn) (bit :: dral)
-	| One t :: tl, [] => Some (dral, t, tl, dbn)
+	| One t :: tl, [] => Some (mkZip tl dral t dbn)
 	| Zero as bit :: tl, 0 :: tn | One _ as bit :: tl, 1 :: tn
 		=> open_borrow tl tn (1 :: dbn) (bit :: dral)
 	| Zero as bit :: tl, 1 :: tn => open_borrow tl tn (0 :: dbn) (bit :: dral)
 	| One _ as bit :: tl, 0 :: tn => open_aux tl tn (0 :: dbn) (bit :: dral)
 	end.
 
-Definition open l n := option_map
-	(fun '(dl, t, tl, dbn) => (dl, CLBT.open (CLBT.make_zip t) dbn, tl))
-	(open_borrow (trim l) (BinNat.trim n) [] []).
+Definition open l n := open_borrow (trim l) (BinNat.trim n) [] [].
 
-Local Lemma open_aux_valid : forall l n dbn dl rdl t rl rn,
-		open_aux l n dbn dl = Some (rdl, t, rl, rn)
-		\/ open_borrow l n dbn dl = Some (rdl, t, rl, rn) ->
+Local Lemma open_aux_valid : forall l n dbn dl zip,
+		open_aux l n dbn dl = Some zip
+		\/ open_borrow l n dbn dl = Some zip ->
 		valid (length dbn) l -> valid_dt (length dbn) dl ->
-		valid_decomp rdl t rl rn.
+		valid_zipper zip.
 	intro l.
-	{	induction l as [|bl tl HR]; intros n dbn dl rdl t rl rn H Hl Hdl;
+	{	induction l as [|bl tl HR]; intros n dbn dl zip H Hl Hdl;
 			[|destruct bl; (destruct n as [|bn tn]; [|destruct bn])]; simpl in *;
 			destruct H as [H|H]; inversion_clear Hl.
 	+	discriminate.
 	+	discriminate.
 	+	discriminate.
 	+	pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
-		apply (HR _ _ _ _ _ _ _ (or_intror H)); assumption.
+		apply (HR _ _ _ _ (or_intror H)); assumption.
 	+	pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
-		apply (HR _ _ _ _ _ _ _ (or_introl H)); assumption.
+		apply (HR _ _ _ _ (or_introl H)); assumption.
 	+	pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
-		apply (HR _ _ _ _ _ _ _ (or_intror H)); assumption.
+		apply (HR _ _ _ _ (or_intror H)); assumption.
 	+	pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
-		apply (HR _ _ _ _ _ _ _ (or_intror H)); assumption.
+		apply (HR _ _ _ _ (or_intror H)); assumption.
 	+	pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
-		apply (HR _ _ _ _ _ _ _ (or_intror H)); assumption.
+		apply (HR _ _ _ _ (or_intror H)); assumption.
 	+	discriminate.
 	+	symmetry in H; inversion_clear H.
 		inversion_clear H0.
 		apply valid_dt_length in Hdl as Hl.
-		split; rewrite Hl; [assumption..|reflexivity].
+		split; simpl; rewrite Hl; [assumption..|reflexivity].
 	+	pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
-		apply (HR _ _ _  _ _ _ _ (or_introl H)); assumption.
+		apply (HR _ _ _ _ (or_introl H)); assumption.
 	+	pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
-		apply (HR _ _ _  _ _ _ _ (or_introl H)); assumption.
+		apply (HR _ _ _ _(or_introl H)); assumption.
 	+	{	destruct tn.
 		+	symmetry in H; inversion_clear H.
 			inversion_clear H0.
 			apply valid_dt_length in Hdl as Hl.
-			split; rewrite Hl; [assumption..|reflexivity].
+			split; simpl; rewrite Hl; [assumption..|reflexivity].
 		+	pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
-			apply (HR _ _ _ _ _ _ _ (or_introl H)); assumption.
+			apply (HR _ _ _ _ (or_introl H)); assumption.
 		}
 	+	pose proof (Hd := valid_DCons _ _ _ H0 Hdl).
-		apply (HR _ _ _ _ _ _ _ (or_intror H)); assumption.
+		apply (HR _ _ _ _ (or_intror H)); assumption.
 	}
 Qed.
 
-Local Lemma open_valid : forall l n rdl rcz rl,
-		open l n = Some (rdl, rcz, rl) -> is_valid l ->	  
-		valid (S (length rdl)) rl /\ valid_dt (length rdl) rdl
-		/\ CLBT.is_valid_zip (length rdl) 0 rcz.
+Local Lemma open_valid : forall l n zip,
+		is_valid l ->
+		open l n = Some zip ->
+		valid_zipper zip.
 Proof.
 	unfold open.
-	intros l n rdl rcz rl Hr Hv.
-	pose proof (open_aux_valid (trim l) (BinNat.trim n) [] []).
-	destruct open_borrow; [|discriminate].
-	destruct p as [p on], p as [p otl], p as [odl ot].
-	simpl in Hr.
-	{	destruct (H odl ot otl on) as [Hot Hodl Hotl Hotn].
+	intros l n zip Hl Hr.
+	{	apply (open_aux_valid (trim l) (BinNat.trim n) [] []).
 	+	right.
-		reflexivity.
+		assumption.
 	+	apply trim_valid.
 		assumption.
 	+	apply valid_DNil.
-	+	assert (Hvz : CLBT.is_valid_zip (length odl) 0 (CLBT.open (CLBT.make_zip ot) on))
-			by (apply CLBT.open_valid; rewrite Hotn; apply CLBT.make_zip_valid; assumption).
-		symmetry in Hr.
-		inversion_clear Hr.
-		split; [|split]; assumption.
 	}
 Qed.
 
@@ -669,7 +665,9 @@ Qed.
 
 Definition drop l n :=
 	match open l n with
-	| Some (_, (t, dt), l) => trim (cons_aux t (DCLBT_to_RAL l dt))
+	| Some zip =>
+		let (t, dt) := CLBT.open (CLBT.make_zip zip.(zip_tree)) zip.(zip_nb) in
+		trim (cons_aux t (DCLBT_to_RAL zip.(zip_tl) dt))
 	| _ => []
 	end.
 
@@ -679,11 +677,15 @@ Proof.
 	intros l n H.
 	unfold drop.
 	pose proof (Hvalid := open_valid l n).
-	destruct open as [p|]; [|apply canonical_Empty].
-	destruct p as [p tl], p as [dl zip], zip as [t dt].
+	destruct open as [zip|]; [|apply canonical_Empty].
+	destruct (Hvalid zip) as [Htl Hdl Ht Hnb]; [assumption|reflexivity|].
+	destruct zip as [tl dl t nb]; simpl in *.
+	pose proof (Hop := CLBT.make_zip_valid _ _ Ht).
+	rewrite <- Hnb in Hop.
+	apply CLBT.open_valid in Hop.
+	rewrite Hnb in Hop.
+	destruct CLBT.open as [ot odt], Hop as [Hot Hodt].
 	apply trim_canonical.
-	destruct (Hvalid dl (t, dt) tl) as [Htl Hp]; [reflexivity|assumption|].
-	destruct Hp as [Hdl Hz], Hz as [Ht Hdt].
 	apply cons_aux_valid; [|assumption].
 	apply (DCLBT_to_RAL_valid _ _ (length dl)); assumption.
 Qed.
@@ -691,24 +693,19 @@ End drop.
 
 Definition lookup l n :=
 	match open l n with
-	| Some (_, (t, _), _) => Some (CLBT.head t)
+	| Some {|zip_tree := t|} => Some (CLBT.head (fst (CLBT.open (CLBT.make_zip t) n)))
 	| _ => None
 	end.
 
 Section update.
 
-Fixpoint plug (l : t) (dl : dt) :=
-	match dl with
-	| [] => l
-	| b :: tdl => plug (b :: l) tdl
-	end.
+Definition plug (l : t) (dl : dt) := rev_append dl l.
 
-Local Lemma plug_valid : forall l dl n,
+Local Lemma plug_valid : forall dl l n,
 		valid n l -> valid_dt n dl ->
 		is_valid (plug l dl).
 Proof.
-	intros l dl n Hl Hdl.
-	revert l n Hl Hdl.
+	intro dl.
 	{	induction dl as [|b tdl HR]; intros l n Hl Hdl; simpl in *.
 	+	inversion Hdl.
 		rewrite <-H in Hl.
@@ -722,8 +719,10 @@ Qed.
 
 Definition update l n a :=
 	match open l n with
-	| Some (dl, (_, dt), l) => plug (One (CLBT.plug (CLBT.singleton a) dt) :: l) dl
-	| _ => l
+	| Some zip =>
+		let (_, dt) := CLBT.open (CLBT.make_zip zip.(zip_tree)) zip.(zip_nb) in
+		plug (One (CLBT.plug (CLBT.singleton a) dt) :: zip.(zip_tl)) zip.(zip_dl)
+	| _ => (RAL.trim l)
 	end.
 
 Lemma update_valid : forall l n a, is_valid l -> is_valid (update l n a).
@@ -731,10 +730,14 @@ Proof.
 	intros l n a H.
 	unfold update.
 	pose proof (Hvalid := open_valid l n).
-	destruct open as [p|]; [|assumption].
-	destruct p as [p tl], p as [dl zip], zip as [t dt].
-	destruct (Hvalid dl (t, dt) tl) as [Htl Hp]; [reflexivity|assumption|].
-	destruct Hp as [Hdl Hz], Hz as [Ht Hdt].
+	destruct open as [zip|]; [|apply trim_valid; assumption].
+	destruct (Hvalid zip) as [Htl Hdl Ht Hnb]; [assumption|reflexivity|].
+	destruct zip as [tl dl t nb]; simpl in *.
+	pose proof (Hop := CLBT.make_zip_valid _ _ Ht).
+	rewrite <- Hnb in Hop.
+	apply CLBT.open_valid in Hop.
+	rewrite Hnb in Hop.
+	destruct CLBT.open as [ot odt], Hop as [Hot Hodt].
 	apply (plug_valid _ _ (length dl)); [|assumption].
 	apply valid_one; [|assumption].
 	apply (CLBT.plug_valid _ _ _ 0); [|assumption].

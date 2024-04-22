@@ -61,8 +61,8 @@ Proof.
 Qed.
 
 Definition open_compare_map :=
-	option_map (fun '((dl, _, tl, dn) : ((@RAL.dt A) * (@CLBT.t A) * (@RAL.t A) * BinNat.t))
-		=> (RAL.strip dl, RAL.strip tl, dn)).
+	option_map (fun zip : (@RAL.zipper A) =>(RAL.strip zip.(RAL.zip_dl),
+						 RAL.strip zip.(RAL.zip_tl), zip.(RAL.zip_nb))).
 Definition compare_forget comp :=
 	match comp with
 	| BinNat.Gt tn dn an => Some (dn, tn, an)
@@ -145,13 +145,13 @@ Proof.
 	}
 Qed.
 
-Theorem open_borrow_compare : forall l n,
+Theorem open_compare : forall l n,
 		RAL.is_valid l ->
-	 	open_compare_map (RAL.open_borrow (RAL.trim l) (BinNat.trim n) [] []) =
+	 	open_compare_map (RAL.open l n) =
 		compare_forget (BinNat.compare (RAL.strip l) n).
 Proof.
 	intros l n Hl.
-	unfold BinNat.compare.
+	unfold BinNat.compare, RAL.open.
 	pose proof (Hnone := BinNat.compare_aux_none (RAL.strip (RAL.trim l)) (BinNat.trim n) [] [] [] []).
 	pose proof (H := open_borrow_compare_aux (RAL.trim l) (BinNat.trim n) [] [] [] []).
 	rewrite <- trim_strip.
@@ -183,36 +183,60 @@ Theorem drop_sub_strip : forall (l : @RAL.t A) n,
 		RAL.strip (RAL.drop l n) = BinNat.sub (RAL.strip l) n.
 Proof.
 	intros l n Hl.
-	unfold BinNat.sub, RAL.drop, RAL.open.
-	pose proof (H := open_borrow_compare l n Hl).
-	pose proof (Hv := RAL.open_aux_valid (RAL.trim l) (BinNat.trim n) [] []).
-	{	destruct RAL.open_borrow as [p|] eqn:He, BinNat.compare as [| |tn dn an];
+	unfold BinNat.sub, RAL.drop.
+	pose proof (H := open_compare l n Hl).
+	pose proof (Hv := RAL.open_valid l n).
+	{	destruct RAL.open as [zip|] eqn:He, BinNat.compare as [| |tn dn an];
 			simpl in*; try discriminate.
-	+	destruct p as [p rn], p as [p rtl], p as [rdl t].
-		pose proof (Hopen := CLBT.open_trace rn (length rn) (length rn) (CLBT.make_zip t)).
+	+	destruct (Hv zip) as [_ _ Ht Hlen]; [assumption|reflexivity|].			
+		destruct zip as [tl dl t nb]; simpl in *.
+		rewrite <- Hlen in Ht.
+		pose proof (Hzv := CLBT.make_zip_valid _ _ Ht).
+		pose proof (Hopen := CLBT.open_trace nb (length nb) (length nb) _ Hzv).
 		destruct CLBT.open as [ot odt].
 		rewrite trim_strip, RAL.cons_aux_inc_strip.
 		repeat f_equal.
 		simpl in Hopen.
-		{	destruct (Hv rdl t rtl rn) as [Ht Hrdl Hrtl Hlen].
-		+	right.
-			reflexivity.
-		+	apply RAL.trim_valid.
-			assumption.
-		+	apply RAL.valid_DNil.
-		+	rewrite DCLBT_to_RAL_strip.
-			pose proof (le_n (length rn)).
-			rewrite Hopen; [|split; [rewrite Hlen; assumption|apply CLBT.valid_DRoot]
-						   |assumption].
-			inversion_clear H.
-			rewrite !rev_append_rev, app_nil_r.
-			reflexivity.
-		}
+		rewrite DCLBT_to_RAL_strip, Hopen; [|apply le_n].
+		rewrite !rev_append_rev, app_nil_r.
+		inversion_clear H.
+		reflexivity.
 	+	reflexivity.
 	+	reflexivity.
 	}
 Qed.
 
+Lemma RAL_plug_strip : forall dl (l : @RAL.t A),
+	  RAL.strip (RAL.plug l dl) = rev_append (RAL.strip dl) (RAL.strip l).
+Proof.
+	intro dl.
+	{	induction dl as [|bl tdl HR]; [|destruct bl]; intro l; simpl.
+	+	reflexivity.
+	+	apply HR.
+	+	apply HR.
+	}
+Qed.
+
+Theorem RAL_update_strip : forall l n (a : A),
+		RAL.is_valid l ->
+		RAL.strip (RAL.update l n a) = RAL.strip (RAL.trim l).
+Proof.
+	intros l n a H.
+	unfold RAL.update.
+	pose proof (Hoc := open_compare l n H).
+	pose proof (Hcomp := BinNat.compare_decomp_Gt (RAL.strip l) n).
+	{	destruct RAL.open as [zip|],
+			BinNat.compare as [|rtn rdn ran|rtn rdn ran]; try discriminate.
+	+	destruct zip as [tl dl t nb]; simpl in *.
+		destruct (Hcomp rtn rdn ran) as [Hl Hz Hval]; [reflexivity|].
+		destruct CLBT.open as [ot odt]; simpl.
+		rewrite RAL_plug_strip, trim_strip, Hz.
+		inversion_clear Hoc.
+		reflexivity.
+	+	reflexivity.
+	+	reflexivity.
+	}
+Qed.
 Theorem create_strip : forall n (a : A), RAL.strip (RAL.create n a) = n.
 Proof.
 	intros n a.
@@ -227,6 +251,7 @@ Proof.
 		reflexivity.
 	}
 Qed.
+
 
 Lemma RAL_create_canonical : forall n (a : A),
 		BinNat.is_canonical n ->
