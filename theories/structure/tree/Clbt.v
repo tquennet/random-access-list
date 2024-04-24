@@ -83,6 +83,76 @@ Proof.
 	assumption.
 Qed.
 
+Fixpoint update t dn a :=
+	match t, dn with
+	| Leaf _, [] => Leaf a
+	| Node l r, 0 :: tdn => Node l (update r tdn a)
+	| Node l r, 1 :: tdn => Node (update l tdn a) r
+	| _, _ => t
+	end.
+
+Fixpoint lookup t dn :=
+	match t, dn with
+	| Leaf a, _ => a
+	| _, [] => head t
+	| Node l r, 0 :: tdn => lookup r tdn
+	| Node l r, 1 :: tdn => lookup l tdn
+	end.
+
+Lemma update_valid : forall n t a,
+		is_valid (length n) t ->
+		is_valid (length n) (update t n a).
+Proof.
+	intro n.
+	{	induction n as [|bn tn HR]; [|destruct bn]; simpl;
+			intros t a Ht; inversion_clear Ht; simpl.
+	+	apply valid_Leaf.
+	+	apply (HR _ a) in H0.
+		apply valid_Node; assumption.
+	+	apply (HR _ a) in H.
+		apply valid_Node; assumption.
+	}
+Qed.
+
+Lemma lookup_update_eq : forall n t a,
+		is_valid (length n) t ->
+		lookup (update t n a) n = a.
+Proof.
+	intro n.
+	{	induction n as [|bn tn HR]; [|destruct bn]; simpl;
+			intros t a Ht; inversion_clear Ht; simpl.
+	+	reflexivity.
+	+	apply HR.
+		assumption.
+	+	apply HR.
+		assumption.
+	}
+Qed.
+Lemma lookup_update_neq : forall n m t a,
+		(length n) = (length m) -> n <> m ->
+		is_valid (length n) t ->
+		lookup (update t n a) m = lookup t m.
+Proof.
+	intro n.
+	{	induction n as [|bn tn HR]; [|destruct bn];	intros m t a Hlen Hneq Ht;
+			(destruct m as [|bm tm]; [|destruct bm]); simpl;
+			inversion_clear Ht; simpl in *.
+	+	contradiction.
+	+	discriminate.
+	+	discriminate.
+	+	discriminate.
+	+	apply eq_add_S in Hlen.
+		assert (tn <> tm) by (intro Ha; rewrite Ha in Hneq; apply Hneq; reflexivity).
+		apply HR; assumption.
+	+	reflexivity.
+	+	reflexivity.
+	+	reflexivity.
+	+	apply eq_add_S in Hlen.
+		assert (tn <> tm) by (intro Ha; rewrite Ha in Hneq; apply Hneq; reflexivity).
+		apply HR; assumption.
+	}
+Qed.
+
 Inductive dt :=
 	| DRoot : dt
 	| DLeft : dt -> t -> dt
@@ -100,8 +170,8 @@ Inductive is_valid_d : nat -> nat -> dt -> Prop :=
 Definition zip := t * dt.
 Definition make_zip t : zip := (t, DRoot).
 
-Definition is_valid_zip (d n : nat) '(t, dt) :=
-	is_valid n t /\ is_valid_d d n dt.
+Definition is_valid_zip (d n : nat) zip :=
+	is_valid n (fst zip) /\ is_valid_d d n (snd zip).
 
 Lemma make_zip_valid : forall t n,
 		is_valid n t -> is_valid_zip n n (make_zip t).
@@ -129,7 +199,7 @@ Lemma down_left_valid : forall zip {d n : nat},
 Proof.
 	intros zip d n H.
 	destruct zip as [t dt].
-	destruct H as [Ht Hdt].
+	destruct H as [Ht Hdt]; simpl in *.
 	inversion_clear Ht.
 	{	split.
 	+	assumption.
@@ -148,7 +218,7 @@ Lemma down_right_valid : forall zip {d n : nat},
 Proof.
 	intros zip d n H.
 	destruct zip as [t dt].
-	destruct H as [Ht Hdt].
+	destruct H as [Ht Hdt]; simpl in *.
 	inversion_clear Ht.
 	{	split.
 	+	assumption.
@@ -220,7 +290,7 @@ Proof.
 		apply HR in He; [|apply le_S_n; assumption].
 		rewrite He.
 		unfold down_right.
-		destruct zip as [t dt], Hz as [Ht Hdt].
+		destruct zip as [t dt], Hz as [Ht Hdt]; simpl in *.
 		inversion_clear Ht.
 		reflexivity.
 	+	destruct n; [apply Nat.nle_succ_0 in Hdn; contradiction|].
@@ -228,7 +298,7 @@ Proof.
 		apply HR in He; [|apply le_S_n; assumption].
 		rewrite He.
 		unfold down_right.
-		destruct zip as [t dt], Hz as [Ht Hdt].
+		destruct zip as [t dt], Hz as [Ht Hdt]; simpl in *.
 		inversion_clear Ht.
 		reflexivity.
 	}

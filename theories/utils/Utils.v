@@ -1,5 +1,4 @@
-
-Require Import Lists.List.
+Require Import Lists.List Arith.
 Import ListNotations.
 
 Section Option.
@@ -77,3 +76,29 @@ Proof.
 	reflexivity.
 Qed.
 End Options.
+
+Section List.
+
+Context {A : Type}.
+
+Lemma list_select_neq : forall n l0 l1 (a b : A),
+		n <> (length l0) ->
+		nth n (l0 ++ [b] ++ l1) a = nth n (l0 ++ [a] ++ l1) a.
+Proof.
+	intros n l0 l1 a b Hn.
+	{	destruct (le_lt_dec (length l0) n).
+	+	rewrite !(app_nth2 l0); [|assumption..].
+		assert (n - length l0 <> 0).
+		{
+			intro H.
+			apply (f_equal (fun x => plus x (length l0))) in H.
+			rewrite Nat.sub_add in H; [contradiction|assumption].
+		}
+		destruct (n - length l0); [contradiction|].
+		reflexivity.
+	+	rewrite !(app_nth1 l0); [|assumption..].
+		reflexivity.
+	}
+Qed.
+		
+End List.

@@ -179,6 +179,18 @@ Proof.
 	}
 Qed.
 
+Lemma strip_length : forall l, length (strip l) = length l.
+Proof.
+	intros l.
+	{	induction l as [|bl tl HR]; [|destruct bl]; simpl in *.
+	+	reflexivity.
+	+	f_equal.
+		apply HR.
+	+	f_equal.
+		apply HR.
+	}
+Qed.
+
 Fixpoint size (l : t) : nat :=
 	match l with
 	| [] => 0
@@ -394,6 +406,23 @@ Proof.
 	destruct H.
 	assumption.
 Qed.
+Lemma trim_canonical_id : forall l, is_canonical l -> trim l = l.
+Proof.
+	intros l H.
+	apply is_canonical_struct_equiv in H.
+	destruct H as [_ H].
+	revert H.
+	{	induction l as [|bl tl HR]; intro H;
+			[|destruct bl; apply BinNat.is_canonical_struct_tl in H as Htl];
+			simpl.
+	+	reflexivity.
+	+	rewrite HR; [|assumption].
+		destruct tl; [discriminate|].
+		reflexivity.
+	+	rewrite HR; [|assumption].
+		reflexivity.
+	}
+Qed.
 
 End canonical.
 
@@ -542,6 +571,9 @@ Record zipper := mkZip
 	zip_nb : BinNat.dt;
 }.
 
+Definition is_zipper l zip :=
+	l = rev_append zip.(zip_dl) (One zip.(zip_tree) :: zip.(zip_tl)).
+
 Record valid_zipper (zip : zipper) :=
 {
 	dec_rtl : valid (S (length zip.(zip_dl))) zip.(zip_tl);
@@ -633,6 +665,69 @@ Proof.
 	}
 Qed.
 
+Lemma open_decomp_aux : forall l n dbn dral zip,
+		(open_aux l n dbn dral = Some zip ->
+		(rev_append dral l) = rev_append (zip.(zip_dl)) (One zip.(zip_tree) :: zip.(zip_tl)))
+		/\ (open_borrow l n dbn dral = Some zip ->
+		(rev_append dral l) = rev_append (zip.(zip_dl)) (One zip.(zip_tree) :: zip.(zip_tl))).
+Proof.
+	intro l.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intros n dbn dral zip;
+			(destruct n as [|bn tn]; [|destruct bn]); simpl in *;
+			(split; intro H); try discriminate.
+	+	apply HR in H.
+		assumption.
+	+	apply HR in H.
+		assumption.
+	+	apply HR in H.
+		assumption.
+	+	apply HR in H.
+		assumption.
+	+	apply HR in H.
+		assumption.
+	+	inversion_clear H.
+		reflexivity.
+	+	apply HR in H.
+		assumption.
+	+	apply HR in H.
+		assumption.
+	+	{	destruct tn.
+		+	inversion_clear H.
+			reflexivity.
+		+	apply HR in H.
+			assumption.
+		}
+	+	apply HR in H.
+		assumption.
+	}
+Qed.
+Lemma open_zipper : forall l n zip,
+	open l n = Some zip ->
+	is_zipper (trim l) zip.
+Proof.
+	intros l n zip H.
+	apply open_decomp_aux in H.
+	assumption.
+Qed.
+
+Lemma open_trim_l : forall l n,
+		is_valid l ->
+		open (trim l) n = open l n.
+Proof.
+	intros l n Hl.
+	unfold open.
+	rewrite trim_canonical_id; [|apply trim_canonical; assumption].
+	reflexivity.
+Qed.
+Lemma open_trim_r : forall l n,
+		open l (BinNat.trim n) = open l n.
+Proof.
+	intros l n.
+	unfold open.
+	rewrite BinNat.trim_canonical_id; [|apply BinNat.trim_canonical].
+	reflexivity.
+Qed.
+
 End open.
 
 Section drop.
@@ -693,7 +788,8 @@ End drop.
 
 Definition lookup l n :=
 	match open l n with
-	| Some {|zip_tree := t|} => Some (CLBT.head (fst (CLBT.open (CLBT.make_zip t) n)))
+	| Some {|zip_tree := t; zip_nb := an|}
+		=> Some (CLBT.lookup t an)
 	| _ => None
 	end.
 
@@ -720,8 +816,7 @@ Qed.
 Definition update l n a :=
 	match open l n with
 	| Some zip =>
-		let (_, dt) := CLBT.open (CLBT.make_zip zip.(zip_tree)) zip.(zip_nb) in
-		plug (One (CLBT.plug (CLBT.singleton a) dt) :: zip.(zip_tl)) zip.(zip_dl)
+		plug (One (CLBT.update zip.(zip_tree) zip.(zip_nb) a) :: zip.(zip_tl)) zip.(zip_dl)
 	| _ => (RAL.trim l)
 	end.
 
@@ -740,8 +835,10 @@ Proof.
 	destruct CLBT.open as [ot odt], Hop as [Hot Hodt].
 	apply (plug_valid _ _ (length dl)); [|assumption].
 	apply valid_one; [|assumption].
-	apply (CLBT.plug_valid _ _ _ 0); [|assumption].
-	apply CLBT.singleton_valid.
+	rewrite <- Hnb.
+	apply CLBT.update_valid.
+	rewrite Hnb.
+	assumption.
 Qed.
 
 End update.
