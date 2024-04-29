@@ -147,22 +147,21 @@ Proof.
 Qed.
 
 Theorem open_compare : forall l n,
-		RAL.is_valid l ->
+		RAL.is_canonical l -> BinNat.is_canonical n ->
 	 	open_compare_map (RAL.open l n) =
 		compare_forget (BinNat.compare (RAL.strip l) n).
 Proof.
-	intros l n Hl.
+	intros l n Hl Hn.
 	unfold BinNat.compare, RAL.open.
-	pose proof (Hnone := BinNat.compare_aux_none (RAL.strip (RAL.trim l)) (BinNat.trim n) [] [] [] []).
-	pose proof (H := open_borrow_compare_aux (RAL.trim l) (BinNat.trim n) [] [] [] []).
-	rewrite <- trim_strip.
+	pose proof (Hnone := BinNat.compare_aux_none (RAL.strip l) n [] [] [] []).
+	pose proof (H := open_borrow_compare_aux l n [] [] [] []).
 	{	destruct BinNat.compare_aux; simpl.
 	+	apply H.
-		apply RAL.is_canonical_struct_equiv, RAL.trim_canonical.
+		apply RAL.is_canonical_struct_equiv.
 		assumption.
 	+	exfalso.
-		rewrite trim_strip in Hnone.
-		apply Hnone; [apply BinNat.trim_canonical..|reflexivity].
+		apply RAL.strip_canonical in Hl.
+		apply Hnone; [assumption..|reflexivity].
 	}
 Qed.
 
@@ -181,12 +180,13 @@ Proof.
 Qed.
 
 Theorem drop_sub_strip : forall (l : @RAL.t A) n,
-		RAL.is_valid l ->
+		RAL.is_canonical l -> BinNat.is_canonical n ->
 		RAL.strip (RAL.drop l n) = BinNat.sub (RAL.strip l) n.
 Proof.
-	intros l n Hl.
+	intros l n Hl Hn.
+	apply RAL.canonical_valid in Hl as Hvl.
 	unfold BinNat.sub, RAL.drop.
-	pose proof (H := open_compare l n Hl).
+	pose proof (H := open_compare l n Hl Hn).
 	pose proof (Hv := RAL.open_valid l n).
 	{	destruct RAL.open as [zip|] eqn:He, BinNat.compare as [| |tn dn an];
 			simpl in*; try discriminate.
@@ -220,18 +220,19 @@ Proof.
 Qed.
 
 Theorem update_strip : forall l n (a : A),
-		RAL.is_valid l ->
-		RAL.strip (RAL.update l n a) = RAL.strip (RAL.trim l).
+		RAL.is_canonical l -> BinNat.is_canonical n ->
+		RAL.strip (RAL.update l n a) = RAL.strip l.
 Proof.
-	intros l n a H.
+	intros l n a Hl Hn.
 	unfold RAL.update.
-	pose proof (Hoc := open_compare l n H).
+	apply strip_canonical in Hl as Hsl.
+	pose proof (Hoc := open_compare l n Hl Hn).
 	pose proof (Hcomp := BinNat.compare_decomp_Gt (RAL.strip l) n).
 	{	destruct RAL.open as [zip|],
 			BinNat.compare as [|rtn rdn ran|rtn rdn ran]; try discriminate.
 	+	destruct zip as [tl dl t nb]; simpl in *.
-		destruct (Hcomp rtn rdn ran) as [Hl Hz Hval]; [reflexivity|].
-		rewrite plug_strip, trim_strip, Hz.
+		destruct (Hcomp rtn rdn ran) as [Hln Hz Hval]; [assumption..|reflexivity|].
+		rewrite plug_strip, Hz.
 		inversion_clear Hoc.
 		reflexivity.
 	+	reflexivity.
@@ -240,57 +241,60 @@ Proof.
 Qed.
 
 Lemma update_canonical : forall l n (a : A),
-		RAL.is_valid l -> RAL.is_canonical (RAL.update l n a).
+		RAL.is_canonical l -> BinNat.is_canonical n ->
+		RAL.is_canonical (RAL.update l n a).
 Proof.
-	intros l n a Hl.
+	intros l n a Hl Hn.
+	apply RAL.canonical_valid in Hl as Hvl.
+	apply strip_canonical in Hl as Hsl.
+	apply BinNat.is_canonical_struct_equiv in Hsl.
 	apply RAL.is_canonical_struct_equiv.
 	split; [apply RAL.update_valid; assumption|].
-	rewrite update_strip, trim_strip; [|assumption].
-	apply BinNat.is_canonical_struct_equiv, BinNat.trim_canonical.
+	rewrite update_strip; assumption.
 Qed.
 
 Theorem lookup_none : forall (l : @RAL.t A) n,
-		RAL.is_valid l ->
+		RAL.is_canonical l -> BinNat.is_canonical n ->
 		n <? (RAL.strip l) = false -> RAL.lookup l n = None.
 Proof.
-	intros l n Hl H.
+	intros l n Hl Hn H.
 	unfold BinNat.ltb, RAL.lookup in *.
 	rewrite BinNat.compare_sym in H.
-	pose proof (Hco := open_compare l n Hl).
+	pose proof (Hco := open_compare l n Hl Hn).
 	destruct RAL.open, (BinNat.compare (RAL.strip l) n); try discriminate.
 	all : reflexivity.
 Qed.
 
 Theorem update_id : forall l n (a : A),
-		RAL.is_valid l ->
-		n <? (RAL.strip l) = false -> RAL.update l n a = RAL.trim l.
+		RAL.is_canonical l -> BinNat.is_canonical n ->
+		n <? (RAL.strip l) = false -> RAL.update l n a = l.
 Proof.
-	intros l n a Hl H.
+	intros l n a Hl Hn H.
 	unfold BinNat.ltb, RAL.update in *.
 	rewrite BinNat.compare_sym in H.
-	pose proof (Hco := open_compare l n Hl).
+	pose proof (Hco := open_compare l n Hl Hn).
 	destruct RAL.open, (BinNat.compare (RAL.strip l) n); try discriminate.
 	all : reflexivity.
 Qed.
 
 Theorem lookup_update_eq : forall (l : @RAL.t A) n a,
-		RAL.is_valid l ->
+		RAL.is_canonical l -> BinNat.is_canonical n ->
 		n <? (RAL.strip l) = true ->
 		RAL.lookup (RAL.update l n a) n = Some a.
 Proof.
-	intros l n a Hl H.
+	intros l n a Hl Hn H.
 
 	(* hypothèses utiles *)
 	apply BinNat.ltb_rev in H.
+	apply RAL.canonical_valid in Hl as Hvl.
 	destruct H as [tn H], H as [dn H], H as [an H].
 	pose proof (Hzlookup := RAL.open_zipper (RAL.update l n a) n).
 	assert (Hvupdate : forall zip,
 			RAL.open l n = Some zip -> RAL.valid_zipper zip)
 		by (intro zip; apply RAL.open_valid; assumption).
-	rewrite RAL.trim_canonical_id in Hzlookup; [|apply update_canonical; assumption].
-	pose proof (Hupdate := open_compare l n Hl).
-	pose proof (Hlookup := open_compare (RAL.update l n a) n (RAL.update_valid _ _ _ Hl)).
-	rewrite update_strip, trim_strip, <- BinNat.compare_trim_l in Hlookup; [|assumption].
+	pose proof (Hupdate := open_compare l n Hl Hn).
+	pose proof (Hlookup := open_compare _ n (update_canonical _ _ a Hl Hn) Hn).
+	rewrite update_strip in Hlookup; [|assumption..].
 	rewrite H in Hlookup, Hupdate.
 
 	(* élimination des cas impossibles *)
@@ -319,10 +323,12 @@ Proof.
 Qed.
 
 Theorem lookup_update_neq : forall (l : @RAL.t A) n m a,
-		RAL.is_valid l -> (BinNat.trim n) <> (BinNat.trim m) ->
-		RAL.lookup (RAL.update l n a) m = RAL.lookup l m.
+		RAL.is_canonical l -> BinNat.is_canonical n -> BinNat.is_canonical m ->
+		n <> m ->	RAL.lookup (RAL.update l n a) m = RAL.lookup l m.
 Proof.
-	intros l n m a Hl H.
+	intros l n m a Hl Hn Hm H.
+	apply RAL.canonical_valid in Hl as Hvl.
+	apply strip_canonical in Hl as Hsl.
 	pose proof (Hzupdate := RAL.open_zipper l n).
 	pose proof (Hzlookup1 := RAL.open_zipper (RAL.update l n a) m).
 	pose proof (Hzlookup2 := RAL.open_zipper l m).
@@ -332,15 +338,13 @@ Proof.
 	assert (Hvlookup2 : forall zip,
 			RAL.open l m = Some zip -> RAL.valid_zipper zip)
 		by (intro zip; apply RAL.open_valid; assumption).
-	rewrite RAL.trim_canonical_id in Hzlookup1; [|apply update_canonical; assumption].
-	pose proof (Hupdate := open_compare l n Hl).
-	pose proof (Hlookup1 := open_compare (RAL.update l n a) m (RAL.update_valid _ _ _ Hl)).
-	pose proof (Hlookup2 := open_compare l m Hl).
+	pose proof (Hupdate := open_compare l n Hl Hn).
+	pose proof (Hlookup1 := open_compare _ _ (update_canonical l n a Hl Hn) Hm).
+	pose proof (Hlookup2 := open_compare l m Hl Hm).
 	pose proof (Hcgt := BinNat.compare_neq_gt (RAL.strip l) _ _ H).
-	rewrite update_strip, trim_strip, <- BinNat.compare_trim_l, <- Hlookup2 in Hlookup1;
-		[|assumption].
+	rewrite update_strip, <- Hlookup2 in Hlookup1; [|assumption..].
 	unfold RAL.lookup, RAL.update in *.
-	destruct (RAL.open l n) as [zip|]; [|rewrite RAL.open_trim_l; [reflexivity|assumption]].
+	destruct (RAL.open l n) as [zip|]; [|reflexivity].
 	destruct (BinNat.compare (RAL.strip l) n) as [| |tn dn an]; [discriminate..|].
 	destruct (BinNat.compare (RAL.strip l) m) as [| | tlm dlm alm],
 		(RAL.open _ m) as [zipl1|], (RAL.open l m) as [zipl2|];
@@ -352,7 +356,7 @@ Proof.
 	specialize (Hvlookup2 zipl2 eq_refl).
 	destruct zip as [tl dl t nb], zipl1 as [tl1 dl1 t1 nb1], zipl2 as [tl2 dl2 t2 nb2].
 	f_equal.
-	specialize (Hcgt tn dn an tlm dlm alm eq_refl eq_refl).
+	specialize (Hcgt tn dn an tlm dlm alm Hsl Hn Hm eq_refl eq_refl).
 	unfold RAL.is_zipper, RAL.plug in *.
 	simpl in *.
 	inversion Hlookup1 as [(Hdl, Htl, Hnb)].

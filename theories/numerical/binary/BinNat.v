@@ -462,7 +462,7 @@ Fixpoint compare_aux (n m : t) (dn dm an am : dt) :=
 	end.
 
 Definition compare n m :=
-	option_default Eq (compare_aux (trim n) (trim m) [] [] [] []).
+	option_default Eq (compare_aux n m [] [] [] []).
 
 Lemma compare_borrow_none : forall n m dn dm an am,
 		is_canonical_struct n -> is_canonical_struct m ->
@@ -524,13 +524,12 @@ Proof.
 Qed.
 
 Lemma compare_some : forall n m comp,
+		is_canonical n -> is_canonical m ->
 		comp = compare n m ->
-		Some comp = compare_aux (trim n) (trim m) [] [] [] [].
+		Some comp = compare_aux n m [] [] [] [].
 Proof.
 	unfold compare.
-	intros n m comp H.
-	pose proof (Hn := trim_canonical n).
-	pose proof (Hm := trim_canonical m).
+	intros n m comp Hn Hm H.
 	pose proof (HNone := compare_aux_none _ _ [] [] [] [] Hn Hm).
 	destruct compare_aux; [|contradiction].
 	simpl in *.
@@ -740,15 +739,14 @@ Qed.
 
 
 Lemma compare_decomp_Lt : forall x y rtn rdn ran,
+		is_canonical x -> is_canonical y  ->
 		Lt rtn rdn ran = compare x y ->
-		decomp (trim y) (trim x) rtn rdn ran.
+		decomp y x rtn rdn ran.
 Proof.
-	intros x y rtn rdn ran H.
-	pose proof (Hx := trim_canonical x).
-	pose proof (Hy := trim_canonical y).
+	intros x y rtn rdn ran Hx Hy H.
+	apply compare_some in H; [|assumption..].
 	apply is_canonical_struct_equiv in Hx, Hy.
-	apply compare_some in H.
-	{	apply (compare_aux_decomp_Lt (trim x) (trim y)) in H.
+	{	apply (compare_aux_decomp_Lt x y) in H.
 	+	assumption.
 	+	reflexivity.
 	+	reflexivity.
@@ -815,10 +813,11 @@ Proof.
 Qed.
 
 Lemma compare_decomp_Gt : forall x y rtn rdn ran,
+		is_canonical x -> is_canonical y ->
 		Gt rtn rdn ran = compare x y ->
-		decomp (trim x) (trim y) rtn rdn ran.
+		decomp x y rtn rdn ran.
 Proof.
-	intros x y rtn rdn ran H.
+	intros x y rtn rdn ran Hx Hy H.
 	apply (f_equal comp_op) in H.
 	rewrite <- compare_sym in H.
 	apply compare_decomp_Lt in H; assumption.
@@ -889,14 +888,15 @@ Proof.
 Qed.
 
 Lemma compare_decomp_Eq : forall n m,
-		Eq = compare n m <-> (trim n) = (trim m).
+		is_canonical n -> is_canonical m ->
+		Eq = compare n m <-> n = m.
 Proof.
-	intros n m.
+	intros n m Hn Hm.
 	{	split; intro H.
-	+	apply compare_some in H.
+	+	apply compare_some in H; [|assumption..].
 		apply compare_aux_decomp_Eq in H.
 		assumption.
-	+	apply (compare_aux_decomp_Eq (trim n) (trim m) [] [] [] []) in H.
+	+	apply (compare_aux_decomp_Eq n m [] [] [] []) in H.
 		unfold compare.
 		rewrite <- H.
 		reflexivity.
@@ -911,19 +911,21 @@ Definition ltb n m :=
 
 Notation "n <? m" := (ltb n m).
 
-Theorem ltb_nat : forall n m, n <? m = (to_nat n <? to_nat m)%nat.
+Theorem ltb_nat : forall n m,
+		is_canonical n -> is_canonical m ->
+		n <? m = (to_nat n <? to_nat m)%nat.
 Proof.
-	intros n m.
+	intros n m Hn Hm.
 	symmetry.
-	pose proof (Heq := compare_decomp_Eq n m).
+	pose proof (Heq := compare_decomp_Eq n m Hn Hm).
 	pose proof (Hlt := compare_decomp_Lt n m).
 	pose proof (Hgt := compare_decomp_Gt n m).
 	unfold ltb.
 	{	destruct compare as [|rtn rdn ran| rtn rdn ran].
-	+	rewrite <- trim_nat, (proj1 Heq), trim_nat; [|reflexivity].
+	+	rewrite (proj1 Heq); [|reflexivity].
 		rewrite PeanoNat.Nat.ltb_irrefl.
 		reflexivity.
-	+	destruct (Hlt rtn rdn ran) as [Hl Hz Hv]; [reflexivity|].
+	+	destruct (Hlt rtn rdn ran) as [Hl Hz Hv]; [assumption..|reflexivity|].
 		apply PeanoNat.Nat.ltb_lt.
 		apply (f_equal to_nat) in Hz.
 		rewrite rev_append_rev in Hz.
@@ -931,12 +933,12 @@ Proof.
 		rewrite !to_nat_app in *.
 		simpl in *.
 		rewrite <- !plus_n_O in *.
-		rewrite PeanoNat.Nat.add_assoc, <- Hv, !trim_nat in Hz.
+		rewrite PeanoNat.Nat.add_assoc, <- Hv in Hz.
 		rewrite Hz, <- plus_Sn_m, PeanoNat.Nat.add_shuffle0.
 		apply PeanoNat.Nat.lt_add_pos_l.
 		rewrite !plus_Sn_m.
 		apply PeanoNat.Nat.lt_0_succ.
-	+	destruct (Hgt rtn rdn ran) as [Hl Hz Hv]; [reflexivity|].
+	+	destruct (Hgt rtn rdn ran) as [Hl Hz Hv]; [assumption..|reflexivity|].
 		apply PeanoNat.Nat.ltb_ge.
 		apply (f_equal to_nat) in Hz.
 		rewrite rev_append_rev in Hz.
@@ -944,7 +946,7 @@ Proof.
 		rewrite !to_nat_app in *.
 		simpl in *.
 		rewrite <- !plus_n_O in *.
-		rewrite PeanoNat.Nat.add_assoc, <- Hv, !trim_nat in Hz.
+		rewrite PeanoNat.Nat.add_assoc, <- Hv in Hz.
 		rewrite Hz, <- plus_Sn_m, PeanoNat.Nat.add_shuffle0.
 		apply PeanoNat.Nat.le_add_l.
 	}
@@ -976,25 +978,25 @@ Definition sub n m :=
 
 Notation "n - m" := (sub n m) : bin_nat_scope.
 
-Theorem sub_minus : forall n m, to_nat (n - m) = (to_nat n - to_nat m)%nat.
+Theorem sub_minus : forall n m,
+		is_canonical n -> is_canonical m ->
+		to_nat (n - m) = (to_nat n - to_nat m)%nat.
 Proof.
-	intros n m.
+	intros n m Hn Hm.
 	unfold sub.
-	pose proof (Heq := compare_decomp_Eq n m).
-	pose proof (Hlt := ltb_nat n m).
+	pose proof (Heq := compare_decomp_Eq n m Hn Hm).
+	pose proof (Hlt := ltb_nat n m Hn Hm).
 	pose proof (Hgt := compare_decomp_Gt n m).
 	unfold ltb in Hlt.
 	{	destruct compare as [|rtn rdn ran|rtn rdn ran].
-	+	rewrite <- (trim_nat n), <- (trim_nat m).
-		rewrite (proj1 Heq); [|reflexivity].
+	+	rewrite (proj1 Heq); [|reflexivity].
 		rewrite PeanoNat.Nat.sub_diag.
 		reflexivity.
 	+	apply eq_sym, PeanoNat.Nat.ltb_lt, PeanoNat.Nat.lt_le_incl in Hlt.
 		symmetry.
 		rewrite PeanoNat.Nat.sub_0_le.
 		assumption.
-	+	destruct (Hgt rtn rdn ran) as [Hl Hz Hv]; [reflexivity|].
-		rewrite <- (trim_nat n), <- (trim_nat m).
+	+	destruct (Hgt rtn rdn ran) as [Hl Hz Hv]; [assumption..|reflexivity|].
 		rewrite Hz, trim_nat, inc_S, !rev_append_rev, !to_nat_app.
 		simpl in *.
 		rewrite !to_nat_app in Hv.
@@ -1008,15 +1010,17 @@ Proof.
 Qed.
 
 
-Theorem compare_eq : forall x n m, (trim n) = (trim m) <-> compare x n = compare x m.
+Theorem compare_eq : forall x n m,
+		is_canonical x -> is_canonical n -> is_canonical m ->
+		n = m <-> compare x n = compare x m.
 Proof.
-	intros x n m.
+	intros x n m Hx Hn Hm.
 	{	split; intro H.
 	+	unfold compare.
 		rewrite H.
 		reflexivity.
-	+	pose proof (Heqn := proj1 (compare_decomp_Eq x n)).
-		pose proof (Heqm := proj1 (compare_decomp_Eq x m)).
+	+	pose proof (Heqn := proj1 (compare_decomp_Eq x n Hx Hn)).
+		pose proof (Heqm := proj1 (compare_decomp_Eq x m Hx Hm)).
 		pose proof (Hltn := compare_decomp_Lt x n).
 		pose proof (Hltm := compare_decomp_Lt x m).
 		pose proof (Hgtn := compare_decomp_Gt x n).
@@ -1024,15 +1028,15 @@ Proof.
 		{	destruct (compare x n) as [|tn dn an | tn dn an],
 				(compare x m) as [|tm dm am | tm dm am]; try discriminate.
 		+	rewrite <- Heqn, Heqm; reflexivity.
-		+	destruct (Hltn tn dn an) as [Hnl Hnz Hnv]; [reflexivity|].
-			destruct (Hltm tm dm am) as [Hml Hmz Hmv]; [reflexivity|].
-			apply canonical_unicity; [apply trim_canonical..|].
+		+	destruct (Hltn tn dn an) as [Hnl Hnz Hnv]; [assumption..|reflexivity|].
+			destruct (Hltm tm dm am) as [Hml Hmz Hmv]; [assumption..|reflexivity|].
+			apply canonical_unicity; [assumption..|].
 			rewrite Hnz, Hmz.
 			inversion_clear H.
 			reflexivity.
-		+	destruct (Hgtn tn dn an) as [Hnl Hnz Hnv]; [reflexivity|].
-			destruct (Hgtm tm dm am) as [Hml Hmz Hmv]; [reflexivity|].
-			apply canonical_unicity; [apply trim_canonical..|].
+		+	destruct (Hgtn tn dn an) as [Hnl Hnz Hnv]; [assumption..|reflexivity|].
+			destruct (Hgtm tm dm am) as [Hml Hmz Hmv]; [assumption..|reflexivity|].
+			apply canonical_unicity; [assumption..|].
 			rewrite <- plus_Sn_m in Hnv, Hmv.
 			apply (f_equal (fun x => x - S (rev_nat an))%nat) in Hnv.
 			apply (f_equal (fun x => x - S (rev_nat am))%nat) in Hmv.
@@ -1044,17 +1048,18 @@ Proof.
 		}
 	}
 Qed.
-Lemma compare_neq_gt : forall x n m (H : (trim n) <> (trim m)) tn dn an tm dm am,
+Lemma compare_neq_gt : forall x n m (H : n <> m) tn dn an tm dm am,
+		is_canonical x -> is_canonical n -> is_canonical m ->
 		Gt tn dn an = compare x n ->
 		Gt tm dm am = compare x m ->
 		an <> am.
 Proof.
-	intros x n m H tn dn an tm dm am Hn Hm Ha.
+	intros x n m H tn dn an tm dm am Hx Hn Hm Hcn Hcm Ha.
 	assert (Hc : compare x n <> compare x m)
-		by (intro Hc; apply compare_eq in Hc; contradiction).
-	rewrite <- Hn, <- Hm in Hc.
-	apply compare_decomp_Gt in Hn, Hm.
-	destruct Hn as [Hnl Hnz _], Hm as [Hml Hmz _].
+		by (intro Hc; apply compare_eq in Hc; [contradiction|assumption..]).
+	rewrite <- Hcn, <- Hcm in Hc.
+	apply compare_decomp_Gt in Hcn, Hcm; [|assumption..].
+	destruct Hcn as [Hnl Hnz _], Hcm as [Hml Hmz _].
 	rewrite Hmz, !rev_append_rev in Hnz.
 	{	destruct (PeanoNat.Nat.eq_dec (length an) (length am)) as [Hl|Hl].
 	+	rewrite Hml, Hnl, <- (rev_length dn), <- (rev_length dm) in Hl.
@@ -1073,22 +1078,6 @@ Proof.
 	}
 Qed.
 
-Lemma compare_trim_r : forall n m, compare n m = compare n (trim m).
-Proof.
-	intros n m.
-	unfold compare.
-	rewrite (trim_canonical_id (trim m)); [reflexivity|].
-	apply trim_canonical.
-Qed.
-	
-Lemma compare_trim_l : forall n m, compare n m = compare (trim n) m.
-Proof.
-	intros n m.
-	unfold compare.
-	rewrite (trim_canonical_id (trim n)); [reflexivity|].
-	apply trim_canonical.
-Qed.
-	
 Module Notations.
 
 Notation "0" := Zero : bin_nat_scope.

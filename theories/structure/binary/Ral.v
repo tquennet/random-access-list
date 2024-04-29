@@ -355,6 +355,14 @@ Proof.
 	}
 Qed.
 
+Lemma canonical_valid : forall l, is_canonical l -> is_valid l.
+Proof.
+	intros l H.
+	apply is_canonical_struct_equiv in H.
+	destruct H as [H _].
+	assumption.
+Qed.
+
 Theorem strip_canonical : forall l, is_canonical l -> BinNat.is_canonical (strip l).
 Proof.
 	intros l H.
@@ -603,7 +611,7 @@ with open_borrow (l : t) (n : BinNat.t) (dbn : BinNat.dt) (dral : dt) :=
 	| One _ as bit :: tl, 0 :: tn => open_aux tl tn (0 :: dbn) (bit :: dral)
 	end.
 
-Definition open l n := open_borrow (trim l) (BinNat.trim n) [] [].
+Definition open l n := open_borrow l n [] [].
 
 Local Lemma open_aux_valid : forall l n dbn dl zip,
 		open_aux l n dbn dl = Some zip
@@ -656,11 +664,10 @@ Local Lemma open_valid : forall l n zip,
 Proof.
 	unfold open.
 	intros l n zip Hl Hr.
-	{	apply (open_aux_valid (trim l) (BinNat.trim n) [] []).
+	{	apply (open_aux_valid l n [] []).
 	+	right.
 		assumption.
-	+	apply trim_valid.
-		assumption.
+	+	assumption.
 	+	apply valid_DNil.
 	}
 Qed.
@@ -703,29 +710,11 @@ Proof.
 Qed.
 Lemma open_zipper : forall l n zip,
 	open l n = Some zip ->
-	is_zipper (trim l) zip.
+	is_zipper l zip.
 Proof.
 	intros l n zip H.
 	apply open_decomp_aux in H.
 	assumption.
-Qed.
-
-Lemma open_trim_l : forall l n,
-		is_valid l ->
-		open (trim l) n = open l n.
-Proof.
-	intros l n Hl.
-	unfold open.
-	rewrite trim_canonical_id; [|apply trim_canonical; assumption].
-	reflexivity.
-Qed.
-Lemma open_trim_r : forall l n,
-		open l (BinNat.trim n) = open l n.
-Proof.
-	intros l n.
-	unfold open.
-	rewrite BinNat.trim_canonical_id; [|apply BinNat.trim_canonical].
-	reflexivity.
 Qed.
 
 End open.
@@ -817,7 +806,7 @@ Definition update l n a :=
 	match open l n with
 	| Some zip =>
 		plug (One (CLBT.update zip.(zip_tree) zip.(zip_nb) a) :: zip.(zip_tl)) zip.(zip_dl)
-	| _ => (RAL.trim l)
+	| _ => l
 	end.
 
 Lemma update_valid : forall l n a, is_valid l -> is_valid (update l n a).
@@ -825,7 +814,7 @@ Proof.
 	intros l n a H.
 	unfold update.
 	pose proof (Hvalid := open_valid l n).
-	destruct open as [zip|]; [|apply trim_valid; assumption].
+	destruct open as [zip|]; [|assumption].
 	destruct (Hvalid zip) as [Htl Hdl Ht Hnb]; [assumption|reflexivity|].
 	destruct zip as [tl dl t nb]; simpl in *.
 	pose proof (Hop := CLBT.make_zip_valid _ _ Ht).
