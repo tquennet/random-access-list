@@ -102,6 +102,63 @@ Definition is_valid := valid 0.
 
 Definition empty : t := [].
 
+
+Section size.
+
+Fixpoint strip (l : t) : BinNat.t :=
+	match l with
+	| [] => []
+	| Zero :: t => 0 :: (strip t)
+	| One _ :: t => 1 :: (strip t)
+	end.
+
+Lemma strip_length : forall l, length (strip l) = length l.
+Proof.
+	intros l.
+	{	induction l as [|bl tl HR]; [|destruct bl]; simpl in *.
+	+	reflexivity.
+	+	f_equal.
+		apply HR.
+	+	f_equal.
+		apply HR.
+	}
+Qed.
+
+Fixpoint size (l : t) : nat :=
+	match l with
+	| [] => 0
+	| Zero :: t => size t
+	| One c :: t => CLBT.size c + size t
+	end.
+Theorem size_strip_valid : forall l, is_valid l -> BinNat.to_nat (strip l) = size l.
+Proof.
+	intros l H.
+	enough (Ha : forall n, valid n l -> 2 ^ n * BinNat.to_nat (strip l) = size l);
+	  [apply Ha in H; simpl in H; rewrite <- plus_n_O in H; assumption|].
+	clear H.
+	{	induction l as [| b tl HR]; [|destruct b]; intros n H; simpl in *.
+	+	rewrite Nat.mul_0_r.
+		reflexivity.
+	+	inversion_clear H.
+		apply HR in H1 as H.
+		rewrite <- H, Nat.pow_succ_r', (Nat.mul_comm 2), <- Nat.mul_assoc.
+		reflexivity.
+	+	inversion_clear H.
+		apply HR in H1 as H.
+		inversion_clear H0.
+		rewrite <- mult_n_Sm, Nat.add_comm.
+		{	apply f_equal2_plus.
+		+	symmetry.
+			apply CLBT.valid_size.
+			assumption.
+		+	rewrite <- H, Nat.pow_succ_r', (Nat.mul_comm 2), <- Nat.mul_assoc.
+			reflexivity.
+		}
+	}
+Qed.
+
+End size.
+
 Section cons.
 
 Local Fixpoint cons_aux (clbt : CLBT.t) (l : t) : t :=
@@ -154,17 +211,6 @@ Proof.
 	}
 Qed.
 
-End cons.
-
-Section size.
-
-Fixpoint strip (l : t) : BinNat.t :=
-	match l with
-	| [] => []
-	| Zero :: t => 0 :: (strip t)
-	| One _ :: t => 1 :: (strip t)
-	end.
-
 Local Lemma cons_aux_inc_strip : forall (l : t) (clbt : CLBT),
 	strip (cons_aux clbt l) = BinNat.inc (strip l).
 Proof.
@@ -179,25 +225,6 @@ Proof.
 	}
 Qed.
 
-Lemma strip_length : forall l, length (strip l) = length l.
-Proof.
-	intros l.
-	{	induction l as [|bl tl HR]; [|destruct bl]; simpl in *.
-	+	reflexivity.
-	+	f_equal.
-		apply HR.
-	+	f_equal.
-		apply HR.
-	}
-Qed.
-
-Fixpoint size (l : t) : nat :=
-	match l with
-	| [] => 0
-	| Zero :: t => size t
-	| One c :: t => CLBT.size c + size t
-	end.
-
 Theorem cons_inc_strip : forall (l : t) (a : A),
 	strip (cons a l) = BinNat.inc (strip l).
 Proof.
@@ -205,34 +232,16 @@ Proof.
 	apply cons_aux_inc_strip.
 Qed.
 
-Theorem size_strip_valid : forall l, is_valid l -> BinNat.to_nat (strip l) = size l.
+
+Lemma cons_aux_empty : forall a l, cons_aux a l <> [].
 Proof.
-	intros l H.
-	enough (Ha : forall n, valid n l -> 2 ^ n * BinNat.to_nat (strip l) = size l);
-	  [apply Ha in H; simpl in H; rewrite <- plus_n_O in H; assumption|].
-	clear H.
-	{	induction l as [| b tl HR]; [|destruct b]; intros n H; simpl in *.
-	+	rewrite Nat.mul_0_r.
-		reflexivity.
-	+	inversion_clear H.
-		apply HR in H1 as H.
-		rewrite <- H, Nat.pow_succ_r', (Nat.mul_comm 2), <- Nat.mul_assoc.
-		reflexivity.
-	+	inversion_clear H.
-		apply HR in H1 as H.
-		inversion_clear H0.
-		rewrite <- mult_n_Sm, Nat.add_comm.
-		{	apply f_equal2_plus.
-		+	symmetry.
-			apply CLBT.valid_size.
-			assumption.
-		+	rewrite <- H, Nat.pow_succ_r', (Nat.mul_comm 2), <- Nat.mul_assoc.
-			reflexivity.
-		}
-	}
+	intros a l H.
+	apply (f_equal strip), (f_equal BinNat.to_nat) in H.
+	rewrite cons_aux_inc_strip, BinNat.inc_S in H.
+	discriminate.
 Qed.
 
-End size.
+End cons.
 
 Section canonical.
 
@@ -432,6 +441,25 @@ Proof.
 	}
 Qed.
 
+Local Lemma trim_cons_aux : forall l a, trim (cons_aux a l) = cons_aux a (trim l).
+Proof.
+	intro l.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intro a; simpl.
+	+	reflexivity.
+	+	destruct trim; reflexivity.
+	+	pose proof (cons_aux_empty (CLBT.Node t0 a) (trim tl)).
+		rewrite HR.
+		destruct cons_aux; [contradiction|].
+		reflexivity.
+	}
+Qed.
+
+Lemma trim_cons : forall l a, trim (cons a l) = cons a (trim l).
+Proof.
+	intros l a.
+	apply trim_cons_aux.
+Qed.
+
 End canonical.
 
 Fixpoint head (l : t) : option A :=
@@ -441,9 +469,25 @@ match l with
 | One clbt :: _ => Some (CLBT.head clbt)
 end.
 
+Local Lemma head_cons_aux : forall l t, head (cons_aux t l) = Some (CLBT.head t).
+Proof.
+	intro l.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intro t; simpl.
+	+	reflexivity.
+	+	reflexivity.
+	+	replace (CLBT.head t) with (CLBT.head (CLBT.Node t0 t)) by reflexivity.
+		apply HR.
+	}
+Qed.
+Lemma head_cons : forall l a, head (cons a l) = Some a.
+Proof.
+	intros l a.
+	apply head_cons_aux.
+Qed.
+
 Section tail.
 
-Local Fixpoint uncons (l : t) : option (CLBT) * t :=
+Fixpoint uncons (l : t) : option (CLBT) * t :=
 	match l with
 	| [] => (None, [])
 	| [One clbt] => (Some clbt, [])
@@ -717,6 +761,11 @@ Proof.
 	assumption.
 Qed.
 
+Lemma open_empty : forall n, open empty n = None.
+Proof.
+	reflexivity.
+Qed.
+
 End open.
 
 Section drop.
@@ -724,8 +773,8 @@ Section drop.
 Local Fixpoint DCLBT_to_RAL (l : t) (dt : CLBT.dt) :=
 	match dt with
 	| CLBT.DRoot => (Zero :: l)
-	| CLBT.DLeft dt _ => Zero :: DCLBT_to_RAL l dt
-	| CLBT.DRight t dt => One t :: DCLBT_to_RAL l dt
+	| CLBT.DLeft dt t => One t :: DCLBT_to_RAL l dt
+	| CLBT.DRight _ dt => Zero :: DCLBT_to_RAL l dt
 	end.
 
 Local Lemma DCLBT_to_RAL_valid : forall l dt d n,
@@ -739,10 +788,10 @@ Proof.
 		apply valid_zero.
 		assumption.
 	+	inversion_clear Hdt.
-		apply valid_zero.
+		apply valid_one; [assumption|].
 		apply HR; assumption.
 	+	inversion_clear Hdt.
-		apply valid_one; [assumption|].
+		apply valid_zero.
 		apply HR; assumption.
 	}
 Qed.
@@ -781,6 +830,26 @@ Definition lookup l n :=
 		=> Some (CLBT.lookup t an)
 	| _ => None
 	end.
+
+Lemma lookup_drop : forall l n,
+		is_valid l ->
+		lookup l n = head (drop l n).
+Proof.
+	intros l n Hl.
+	unfold lookup, drop.
+	pose proof (Hv := open_valid l n).
+	destruct (open l n) as [zip|]; [|reflexivity].
+	specialize (Hv zip Hl eq_refl).
+	destruct Hv as [_ _ Ht Hlen].
+	destruct zip as [tl dl t an]; simpl in *.
+	rewrite <- Hlen in Ht.
+	pose proof (CLBT.open_lookup t an Ht).
+	destruct CLBT.open.
+	symmetry.
+	rewrite trim_cons_aux.
+	simpl in H; rewrite H.
+	apply head_cons_aux.
+Qed.
 
 Section update.
 

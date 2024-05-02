@@ -124,7 +124,7 @@ Proof.
 	}
 Qed.
 
-Theorem open_borrow_compare_aux : forall l n dn dl an am,
+Lemma open_borrow_compare_aux : forall l n dn dl an am,
 		RAL.is_canonical_struct (length dl) l ->
 	 	open_compare_map (RAL.open_borrow l n an dl) =
 		compare_forget_opt (BinNat.compare_aux (RAL.strip l) n (RAL.strip dl) dn an am).

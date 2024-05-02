@@ -184,8 +184,8 @@ Qed.
 Fixpoint dtrace dt :=
 	match dt with
 	| DRoot => []
-	| DLeft dt _ => 0 :: (dtrace dt)
-	| DRight _ dt => 1 :: (dtrace dt)
+	| DLeft dt _ => 1 :: (dtrace dt)
+	| DRight _ dt => 0 :: (dtrace dt)
 	end.
 
 Definition down_left '(t, dt) :=
@@ -258,9 +258,27 @@ Qed.
 Fixpoint open zip dn :=
 	match dn with
 	| [] => zip
-	| 0 :: tdn => open (down_left zip) tdn
-	| 1 :: tdn => open (down_right zip) tdn
+	| 0 :: tdn => open (down_right zip) tdn
+	| 1 :: tdn => open (down_left zip) tdn
 	end.
+
+Lemma open_lookup : forall t dn,
+		is_valid (length dn) t ->
+		fst (open (make_zip t) dn) = Leaf (lookup t dn).
+Proof.
+	enough (H : forall t dt dn, is_valid (length dn) t ->
+						   fst (open (t, dt) dn) = Leaf (lookup t dn))
+		by (intros t dn; apply H).
+	intro t.
+	{	induction t as [t|l HRl r HRr]; intros dt dn H.
+	+	inversion H as [t' Hl Ht'|].
+		apply eq_sym, length_zero_iff_nil in Hl.
+		rewrite Hl.
+		reflexivity.
+	+	destruct dn as [|bn tn]; inversion_clear H.
+		destruct bn; [apply HRr|apply HRl]; assumption.
+	}
+Qed.
 
 Lemma open_valid : forall dn zip d,
 		is_valid_zip d (length dn) zip ->
@@ -270,10 +288,10 @@ Proof.
 	{	induction dn as [|b tdn HR]; intros zip d H; [|destruct b]; simpl.
 	+	assumption.
 	+	apply HR.
-		apply down_left_valid.
+		apply down_right_valid.
 		assumption.
 	+	apply HR.
-		apply down_right_valid.
+		apply down_left_valid.
 		assumption.
 	}
 Qed.
@@ -286,7 +304,7 @@ Proof.
 	{	induction dn as [|b tn HR]; intros d n zip Hz Hdn; [|destruct b]; simpl in *.
 	+	reflexivity.
 	+	destruct n; [apply Nat.nle_succ_0 in Hdn; contradiction|].
-		apply down_left_valid in Hz as He.
+		apply down_right_valid in Hz as He.
 		apply HR in He; [|apply le_S_n; assumption].
 		rewrite He.
 		unfold down_right.
@@ -294,7 +312,7 @@ Proof.
 		inversion_clear Ht.
 		reflexivity.
 	+	destruct n; [apply Nat.nle_succ_0 in Hdn; contradiction|].
-		apply down_right_valid in Hz as He.
+		apply down_left_valid in Hz as He.
 		apply HR in He; [|apply le_S_n; assumption].
 		rewrite He.
 		unfold down_right.
