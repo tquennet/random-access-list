@@ -64,6 +64,31 @@ Proof.
 	}
 Qed.
 
+Definition not b :=
+	match b with
+	| 0 => 1
+	| 1 => 0
+	end.
+
+Definition complement := map not.
+Lemma complement_length : forall n,
+		length (complement n) = length n.
+Proof.
+	intros n.
+	apply map_length.
+Qed.
+Lemma complement_inj : forall n m,
+		complement n = complement m -> n = m.
+Proof.
+	intro n.
+	{	induction n as [|bn tn HR]; intros m H; destruct m as [|bm tm];
+			[|discriminate..|]; simpl in *.
+	+	reflexivity.
+	+	inversion H.
+		destruct bn, bm; [|discriminate..|]; f_equal; apply HR; assumption.		
+	}
+Qed.
+
 Definition zero : t := [].
 Notation def_zero := (option_default zero).
 
@@ -204,7 +229,7 @@ Proof.
 	}
 Qed.
 
-Local Lemma is_canonical_struct_equiv : forall (n : t),
+Lemma is_canonical_struct_equiv : forall (n : t),
 	is_canonical n <-> is_canonical_struct n.
 Proof.
 	intro n.
@@ -230,6 +255,41 @@ Proof.
 				assumption.
 			}
 		}
+	}
+Qed.
+
+
+Lemma is_canonical_struct_app_fix : forall l r b,
+		r <> [] -> is_canonical_struct_fix b (l ++ r) = is_canonical_struct_fix false r.
+Proof.
+	intros l r b Hr.
+	revert b.
+	{	induction l as [|bl tl HR]; intros b; simpl in *.
+	+	destruct r; [contradiction|reflexivity].
+	+	destruct bl; apply HR.
+	}
+Qed.
+
+Lemma is_canonical_struct_app : forall l r,
+		r <> [] -> is_canonical_struct (l ++ r) <-> is_canonical_struct r.
+Proof.
+	intros l r Hr.
+	{	split; unfold is_canonical_struct; intro H.
+	+	rewrite is_canonical_struct_app_fix in H; [|assumption].
+		apply is_canonical_struct_false in H.
+		assumption.
+	+	rewrite is_canonical_struct_app_fix; [|assumption].
+		destruct r; [contradiction|assumption].
+	}
+Qed.
+
+Lemma canonical_ones : forall n, is_canonical (repeat 1 n).
+Proof.
+	intros n.
+	apply is_canonical_struct_equiv.
+	{	induction n as [|n HR]; simpl.
+	+	reflexivity.
+	+	assumption.
 	}
 Qed.
 

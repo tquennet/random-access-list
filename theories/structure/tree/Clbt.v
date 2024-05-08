@@ -95,8 +95,8 @@ Fixpoint lookup t dn :=
 	match t, dn with
 	| Leaf a, _ => a
 	| _, [] => head t
-	| Node l r, 0 :: tdn => lookup r tdn
-	| Node l r, 1 :: tdn => lookup l tdn
+	| Node _ r, 0 :: tdn => lookup r tdn
+	| Node l _, 1 :: tdn => lookup l tdn
 	end.
 
 Lemma update_valid : forall n t a,

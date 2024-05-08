@@ -165,20 +165,6 @@ Proof.
 	}
 Qed.
 
-
-Lemma DCLBT_to_RAL_strip : forall dt (l : @RAL.t A),
-		RAL.strip (RAL.DCLBT_to_RAL l dt) = CLBT.dtrace dt ++ 0 :: (RAL.strip l).
-Proof.
-	intros dt l.
-	{	induction dt as [| dt HR t| t dt HR]; simpl.
-	+	reflexivity.
-	+	rewrite HR.
-		reflexivity.
-	+	rewrite HR.
-		reflexivity.
-	}
-Qed.
-
 Theorem drop_sub_strip : forall (l : @RAL.t A) n,
 		RAL.is_canonical l -> BinNat.is_canonical n ->
 		RAL.strip (RAL.drop l n) = BinNat.sub (RAL.strip l) n.
@@ -196,11 +182,14 @@ Proof.
 		pose proof (Hzv := CLBT.make_zip_valid _ _ Ht).
 		pose proof (Hopen := CLBT.open_trace nb (length nb) (length nb) _ Hzv).
 		destruct CLBT.open as [ot odt].
-		rewrite trim_strip, RAL.cons_aux_inc_strip.
+		pose proof (Hss := RAL.scatter_strip nb t).
+		rewrite trim_strip, RAL.scatter_tl_aux.
+		destruct RAL.scatter as [st sl]; simpl in *.
+		rewrite RAL.cons_aux_inc_strip.
 		repeat f_equal.
-		simpl in Hopen.
-		rewrite DCLBT_to_RAL_strip, Hopen; [|apply le_n].
-		rewrite !rev_append_rev, app_nil_r.
+		unfold RAL.strip in *.
+		rewrite map_app, Hss, rev_append_rev.
+		simpl.
 		inversion_clear H.
 		reflexivity.
 	+	reflexivity.
@@ -319,6 +308,7 @@ Proof.
 	apply CLBT.lookup_update_eq.
 	destruct Hvupdate as [_ _ Ht Hlen]; simpl in Ht, Hlen.
 	rewrite <- Hlen, Hnb1 in Ht.
+	rewrite BinNat.complement_length.
 	assumption.
 Qed.
 
@@ -378,17 +368,20 @@ Proof.
 		rewrite nth_middle, Hdl, nth_middle in Hzupdate.
 		inversion_clear Hzupdate.
 		{	apply CLBT.lookup_update_neq.
-		+	rewrite Hlnl2, Hlnl.
+		+	rewrite !BinNat.complement_length, Hlnl2, Hlnl.
 			assumption.
 		+	inversion_clear Hupdate.
 			inversion_clear Hlookup2.
-			assumption.
-		+	rewrite Hlnl.
+			intro Hc.
+			apply BinNat.complement_inj in Hc.
+			contradiction.
+		+	rewrite BinNat.complement_length, Hlnl.
 			assumption.
 		}
 	+	apply (f_equal (fun l => nth (length (rev dl1)) l (RAL.One t))) in Hzlookup1.
 		rewrite nth_middle in Hzlookup1.
-		{	rewrite (list_select_neq _ (rev dl) tl _ (RAL.One (RAL.CLBT.update t nb a)))
+		{	rewrite (list_select_neq _ (rev dl) tl _
+						 (RAL.One (RAL.CLBT.update t (BinNat.complement nb) a)))
 				in Hzlookup1.
 		+	simpl in Hzlookup1.
 			rewrite <- (rev_length dl2), <- (rev_length dl1) in Hdl.
@@ -401,6 +394,7 @@ Proof.
 		}
 	}
 Qed.
+
 
 Theorem create_strip : forall n (a : A), RAL.strip (RAL.create n a) = n.
 Proof.
