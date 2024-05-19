@@ -269,7 +269,8 @@ Inductive is_canonical : t -> Prop :=
 		  is_canonical l -> is_canonical (cons a l).
 
 
-Definition is_canonical_struct n l := valid n l /\ BinNat.is_canonical_struct (strip l).
+Notation is_precanonical l := (BinNat.is_canonical_struct (strip l)).
+Definition is_canonical_struct n l := valid n l /\ is_precanonical l.
 
 Lemma is_canonical_struct_tl : forall n b l,
 	  is_canonical_struct n (b :: l) -> is_canonical_struct (S n) l.
@@ -385,12 +386,11 @@ Proof.
 	assumption.
 Qed.
 
-Theorem strip_canonical : forall l, is_canonical l -> BinNat.is_canonical (strip l).
+Theorem strip_canonical : forall l, is_canonical l -> is_precanonical l.
 Proof.
 	intros l H.
 	apply is_canonical_struct_equiv in H.
 	destruct H as [_ H].
-	apply BinNat.is_canonical_struct_equiv in H.
 	assumption.
 Qed.
 
@@ -438,7 +438,7 @@ Proof.
 Qed.
 
 Lemma trim_strip_canonical_id : forall l,
-		BinNat.is_canonical_struct (strip l) -> trim l = l.
+		is_precanonical l -> trim l = l.
 Proof.
 	intros l.
 	{	induction l as [|bl tl HR]; intro H;
@@ -893,39 +893,61 @@ Proof.
 	}
 Qed.
 
-End open.
-
-Section drop.
-
-(*Local Fixpoint DCLBT_to_RAL (l : t) (dt : CLBT.dt) :=
-	match dt with
-	| CLBT.DRoot => (Zero :: l)
-	| CLBT.DLeft dt _ => Zero :: DCLBT_to_RAL l dt
-	| CLBT.DRight t dt => One t :: DCLBT_to_RAL l dt
+Definition dec_zip zip :=
+	match BinNat.dt_dec zip.(zip_nb) with
+	| (false, _) => open_borrow zip.(zip_tl) [] (repeat 1 (length zip.(zip_dl))) zip.(zip_dl)
+	| (true, r) => Some (mkZip zip.(zip_tl) zip.(zip_dl) zip.(zip_tree) r)
 	end.
 
-Local Lemma DCLBT_to_RAL_valid : forall l dt d n,
-		valid (S d) l -> CLBT.is_valid_d d n dt ->
-		valid n (DCLBT_to_RAL l dt).
+
+(*Lemma open_borrow_zero : forall l dl dn1 dn2 zip,
+		BinNat.dt_dec dn1 = (true, dn2) ->
+		open_borrow l [] dn1 dl = Some zip ->
+		open_borrow l [] dn2 dl = dec_zip zip.
 Proof.
-	intros l dt d.
-	{	induction dt as [|dt HR t| t dt HR]; intros n Hl Hdt; simpl in *.
-	+	inversion Hdt.
-		rewrite <- H0.
-		apply valid_zero.
+	intro l.
+	{	induction l as [|bl tl HR]; [|destruct bl];
+			intros dl dn1 dn2 zip Hd H; simpl in *.
+	+	discriminate.
+	+	assert (Hdr : (BinNat.dt_dec (1 :: dn1) = (true, 1 :: dn2)))
+			by (simpl; rewrite Hd; reflexivity).
+		specialize (HR _ _ _ _ Hdr H).
 		assumption.
-	+	inversion_clear Hdt.
-		apply valid_zero.
-		apply HR; assumption.
-	+	inversion_clear Hdt.
-		apply valid_one; [assumption|].
-		apply HR; assumption.
+	+	inversion_clear H.
+		unfold dec_zip; simpl.
+		rewrite Hd.
+		reflexivity.
 	}
 Qed.
 
-Definition drop_aux zip :=
-	let (t, dt) := CLBT.open (CLBT.make_zip zip.(zip_tree)) zip.(zip_nb) in
-	trim (cons_aux t (DCLBT_to_RAL zip.(zip_tl) dt)).*)
+Lemma open_aux_inc : forall l n dl dn1 dn2 zip,
+		BinNat.dt_dec dn1 = (false, dn2) ->
+		(open_aux l n dn1 dl = Some zip /\ open_borrow l n dn1 dl = Some zip) ->
+		(open_aux l (BinNat.inc n) dn2 dl = dec_zip zip /\
+		open_borrow l (BinNat.inc n) dn2 dl = dec_zip zip).
+Proof.
+	intro l.
+	{	induction l as [|bl tl HR]; intros n dl dn1 dn2 zip Hd H;
+			[|destruct bl; (destruct n as [|bn tn]; [|destruct bn])];
+			destruct H as [Ha Hb]; try discriminate; split.
+	+	simpl.
+		assert (Hdr : BinNat.dt_dec (1 :: dn1) = (true, (0 :: dn2)))
+			by (simpl; rewrite Hd; reflexivity).
+		apply (open_borrow_zero _ _ (1 :: dn1)).
+	+	assert (Hdr : BinNat.dt_dec (0 :: dn1) = (false, (1 :: dn2)))
+			by (simpl; destruct BinNat.dt_dec, b; [discriminate|inversion_clear Hd; reflexivity]).
+		specialize (HR _ _ _ _ _ Hdr (or_intror H)).
+	}
+Qed.
+
+Lemma open_inc : forall l n zip,
+		open l n = Some zip ->
+		open l (BinNat.inc n) = dec_zip zip.
+Proof.
+Qed.*)
+End open.
+
+Section drop.
 
 Fixpoint scatter t tl dn :=
 	match dn with
@@ -1094,6 +1116,12 @@ Proof.
 		reflexivity.
 	}
 Qed.
+
+(*Lemma drop_inc : forall l n,
+		is_canonical l -> BinNat.is_canonical n ->
+		tail (drop l n) = drop l (BinNat.inc n).
+Proof.
+Qed.*)
 
 End drop.
 

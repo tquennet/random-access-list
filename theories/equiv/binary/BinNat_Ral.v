@@ -160,7 +160,7 @@ Proof.
 		apply RAL.is_canonical_struct_equiv.
 		assumption.
 	+	exfalso.
-		apply RAL.strip_canonical in Hl.
+		apply RAL.strip_canonical, BinNat.is_canonical_struct_equiv in Hl.
 		apply Hnone; [assumption..|reflexivity].
 	}
 Qed.

@@ -360,6 +360,17 @@ Functional Scheme dec_aux_ind := Induction for dec_aux Sort Prop.
 
 Definition dec n := def_zero (dec_aux n).
 
+Fixpoint dt_dec dn :=
+	match dn with
+	| [] => (false, [])
+	| b :: tdn =>
+		match b, dt_dec tdn with
+		| _, (true, r) => (true, b :: r)
+		| 1, (false, r) => (true, 0 :: r)
+		| 0, (false, r) => (false, 1 :: r)
+		end
+	end.
+
 Lemma inc_dec : forall (n : t),
 	is_canonical n -> dec (inc n) = n.
 Proof.
