@@ -323,3 +323,98 @@ Proof.
 Qed.
 
 End CLBT.
+
+(*********************************)
+(* Quick-chick generators *)
+
+From QuickChick Require Import QuickChick Tactics.
+
+Section GMonadDef.
+Instance GMonad : `{Monad G} | 3 :=
+  {
+    ret := @returnGen;
+    bind := @bindGen
+  }.
+End GMonadDef.
+
+Module DoNotation.
+Notation "'do!' X <- A ; B" :=
+  (bindGen A (fun X => B))
+    (at level 200, X ident, A at level 100, B at level 200).
+End DoNotation.
+
+Import DoNotation.
+
+Derive (Show) for t.
+
+#[export] Instance ShowT {A} `{_ : Show A} : Show (@t A) := Showt.
+
+Lemma test_show0: show (Leaf 32) = "Leaf 32"%string.
+Proof. reflexivity. Qed.
+
+Lemma test_show1: show (Node (Leaf 32) (Leaf 13)) = "Node (Leaf 32) (Leaf 13)"%string.
+Proof. reflexivity. Qed.
+
+Lemma test_show2: show (Node (Leaf 31) (Node (Leaf 32) (Leaf 13))) = "Node (Leaf 31) (Node (Leaf 32) (Leaf 13))"%string.
+Proof. reflexivity. Qed.
+
+#[export] Instance GenSizedt {A} `{g : G A} : GenSized (@t A) :=
+  {| arbitrarySized := let fix aux n :=
+       match n with
+         | O => do! a <- g ; ret (Leaf a)
+         | S n => do! l <- aux n ;
+                  do! r <- aux n ;
+                  ret (Node l r)
+      end
+     in aux |}.
+
+
+(*
+Sample (@arbitrarySized _ (@GenSizedt _ (choose (0, 42)%nat)) 1).
+===> QuickChecking (@arbitrarySized _ (@GenSizedt _ (choose (0, 42)%nat)) 1)
+     [Node (Leaf 3) (Leaf 0);
+      Node (Leaf 20) (Leaf 7);
+      Node (Leaf 22) (Leaf 26);
+      Node (Leaf 3) (Leaf 0);
+      Node (Leaf 20) (Leaf 28);
+      Node (Leaf 42) (Leaf 14);
+      Node (Leaf 31) (Leaf 26);
+      Node (Leaf 24) (Leaf 3);
+      Node (Leaf 3) (Leaf 11);
+      Node (Leaf 19) (Leaf 3);
+      Node (Leaf 8) (Leaf 13)]
+     Time Elapsed: 0.002769s
+
+Sample (@arbitrarySized _ (@GenSizedt _ (choose (0, 42)%nat)) 2).
+===> QuickChecking (@arbitrarySized _ (@GenSizedt _ (choose (0, 42)%nat)) 2)
+     [Node (Node (Leaf 21) (Leaf 23)) (Node (Leaf 2) (Leaf 35));
+      Node (Node (Leaf 32) (Leaf 23)) (Node (Leaf 9) (Leaf 23));
+      Node (Node (Leaf 37) (Leaf 8)) (Node (Leaf 19) (Leaf 13));
+      Node (Node (Leaf 7) (Leaf 14)) (Node (Leaf 19) (Leaf 25));
+      Node (Node (Leaf 35) (Leaf 9)) (Node (Leaf 15) (Leaf 37));
+      Node (Node (Leaf 3) (Leaf 40)) (Node (Leaf 26) (Leaf 26));
+      Node (Node (Leaf 31) (Leaf 41)) (Node (Leaf 39) (Leaf 26));
+      Node (Node (Leaf 22) (Leaf 9)) (Node (Leaf 15) (Leaf 9));
+      Node (Node (Leaf 6) (Leaf 1)) (Node (Leaf 20) (Leaf 42));
+      Node (Node (Leaf 3) (Leaf 19)) (Node (Leaf 21) (Leaf 37));
+      Node (Node (Leaf 12) (Leaf 3)) (Node (Leaf 16) (Leaf 23))]
+     Time Elapsed: 0.002875s
+*)
+
+
+
+#[export] Instance Shrinkt  {A} `{Shrink A} : Shrink (@t A) :=
+  {| shrink := let fix aux t :=
+                   match t with
+                   | Leaf a => List.map Leaf (shrink a)
+                   | Node l r => let l := list_prod (aux l) (aux r) in
+                                 List.map (fun '(l, r) => Node l r) l
+                   end
+               in aux |}.
+
+(* XXX: decidable equality *)
+#[export] Instance Eq__Dec {A} `{Dec A} (x y : @t A) : Dec (x = y).
+Admitted.
+
+
+(*********************************)
