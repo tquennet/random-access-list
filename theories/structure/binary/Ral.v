@@ -1,8 +1,6 @@
 Require Import Arith Lists.List FunInd.
 Require structure.tree.Clbt numerical.binary.BinNat.
 Require Import NumRep.utils.Utils.
-Module CLBT := structure.tree.Clbt.
-Module BinNat := numerical.binary.BinNat.
 Import BinNat.Notations.
 
 Open Scope nat_scope.
@@ -55,7 +53,7 @@ Section RAL.
 
 Context {A : Type}.
 
-Notation CLBT := (@CLBT.t A).
+Notation CLBT := (@Clbt.t A).
 
 Variant BIT :=
 	| Zero : BIT
@@ -65,8 +63,8 @@ Definition t := list BIT.
 
 Variant is_valid_BIT : nat -> BIT -> Prop :=
 	| valid_BIT_Zero : forall {n : nat}, is_valid_BIT n Zero
-	| valid_BIT_One : forall {n : nat} (clbt : CLBT.t),
-		CLBT.is_valid n clbt -> is_valid_BIT n (One clbt).
+	| valid_BIT_One : forall {n : nat} (clbt : Clbt.t),
+		Clbt.is_valid n clbt -> is_valid_BIT n (One clbt).
 
 Inductive valid : nat -> t -> Prop :=
 	| valid_Nil : forall {n : nat}, valid n []
@@ -80,8 +78,8 @@ Proof.
 	apply valid_Cons;
 		[apply valid_BIT_Zero | assumption].
 Qed.
-Local Lemma valid_one : forall {n : nat} (ral : t) (clbt : CLBT.t),
-		CLBT.is_valid n clbt -> valid (S n) ral
+Local Lemma valid_one : forall {n : nat} (ral : t) (clbt : Clbt.t),
+		Clbt.is_valid n clbt -> valid (S n) ral
 		-> valid n (One clbt :: ral).
 Proof.
 	intros n ral clbt Hclbt Hral.
@@ -141,7 +139,7 @@ Fixpoint size (l : t) : nat :=
 	match l with
 	| [] => 0
 	| Zero :: t => size t
-	| One c :: t => CLBT.size c + size t
+	| One c :: t => Clbt.size c + size t
 	end.
 Theorem size_strip_valid : forall l, is_valid l -> BinNat.to_nat (strip l) = size l.
 Proof.
@@ -162,7 +160,7 @@ Proof.
 		rewrite <- mult_n_Sm, Nat.add_comm.
 		{	apply f_equal2_plus.
 		+	symmetry.
-			apply CLBT.valid_size.
+			apply Clbt.valid_size.
 			assumption.
 		+	rewrite <- H, Nat.pow_succ_r', (Nat.mul_comm 2), <- Nat.mul_assoc.
 			reflexivity.
@@ -174,17 +172,17 @@ End size.
 
 Section cons.
 
-Local Fixpoint cons_aux (clbt : CLBT.t) (l : t) : t :=
+Local Fixpoint cons_aux (clbt : Clbt.t) (l : t) : t :=
 	match l with
 	| [] => [One clbt]
 	| Zero :: t => One clbt :: t
-	| One e :: t => Zero :: cons_aux (CLBT.Node e clbt) t
+	| One e :: t => Zero :: cons_aux (Clbt.Node e clbt) t
 	end.
 
 Functional Scheme cons_aux_ind := Induction for cons_aux Sort Prop.
 
 Lemma cons_aux_valid : forall  (l : t) (clbt : CLBT) {n : nat},
-	valid n l -> CLBT.is_valid n clbt ->
+	valid n l -> Clbt.is_valid n clbt ->
 	valid n (cons_aux clbt l).
 Proof.
 	intros clbt l.
@@ -196,11 +194,11 @@ Proof.
 	+	inversion_clear Hl; inversion_clear H.
 		apply valid_zero.
 		apply IHt0; [assumption|].
-		apply CLBT.valid_Node; assumption.
+		apply Clbt.valid_Node; assumption.
 	}
 Qed.
 
-Definition cons (a : A) (l : t) := cons_aux (CLBT.singleton a) l.
+Definition cons (a : A) (l : t) := cons_aux (Clbt.singleton a) l.
 
 Lemma cons_valid : forall (a : A) (l : t),
 	is_valid l -> is_valid (cons a l).
@@ -208,7 +206,7 @@ Proof.
 	intros a l H.
 	{	apply cons_aux_valid.
 	+	exact H.
-	+	apply CLBT.singleton_valid.
+	+	apply Clbt.singleton_valid.
 	}
 Qed.
 
@@ -219,7 +217,7 @@ Proof.
 	{	destruct l as [|b tl]; [|destruct b].
 	+	exists (One clbt), []; reflexivity.
 	+	exists (One clbt), tl; reflexivity.
-	+	exists Zero, (cons_aux (CLBT.Node t0 clbt) tl).
+	+	exists Zero, (cons_aux (Clbt.Node t0 clbt) tl).
 		reflexivity.
 	}
 Qed.
@@ -261,7 +259,7 @@ Section canonical.
 Inductive is_canonical_aux (n : nat) : t -> Prop :=
 	| canonical_aux_Empty : is_canonical_aux n []
 	| canonical_aux_Cons : forall (l : t) (t : CLBT),
-	  is_canonical_aux n l -> CLBT.is_valid n t -> is_canonical_aux n (cons_aux t l).
+	  is_canonical_aux n l -> Clbt.is_valid n t -> is_canonical_aux n (cons_aux t l).
 
 Inductive is_canonical : t -> Prop :=
 	| canonical_Empty : is_canonical empty
@@ -309,14 +307,14 @@ Proof.
 	intro l.
 	{	split; intro H; induction H.
 	+	apply canonical_aux_Empty.
-	+	apply canonical_aux_Cons; [assumption| apply CLBT.singleton_valid].
+	+	apply canonical_aux_Cons; [assumption| apply Clbt.singleton_valid].
 	+	apply canonical_Empty.
 	+	inversion_clear H0.
 		apply canonical_Cons; assumption.
 	}
 Qed.
 
-Lemma is_canonical_aux_One : forall n t, CLBT.is_valid n t -> is_canonical_aux n [One t].
+Lemma is_canonical_aux_One : forall n t, Clbt.is_valid n t -> is_canonical_aux n [One t].
 Proof.
 	intros n t H.
 	apply (canonical_aux_Cons n []); [apply canonical_aux_Empty| assumption].
@@ -467,7 +465,7 @@ Proof.
 	{	induction l as [|bl tl HR]; [|destruct bl]; intro a; simpl.
 	+	reflexivity.
 	+	destruct trim; reflexivity.
-	+	pose proof (cons_aux_empty (CLBT.Node t0 a) (trim tl)).
+	+	pose proof (cons_aux_empty (Clbt.Node t0 a) (trim tl)).
 		rewrite HR.
 		destruct cons_aux; [contradiction|].
 		reflexivity.
@@ -517,7 +515,7 @@ Section cons_canonical.
 Lemma cons_propagate : forall (l : t) a t rt n,
 		BinNat.is_canonical (strip l) ->
 		cons_aux a l = (repeat Zero n) ++ [One rt] ->
-		cons_aux a (l ++ [One t]) = (repeat Zero n) ++ [Zero; One (CLBT.Node t rt)].
+		cons_aux a (l ++ [One t]) = (repeat Zero n) ++ [Zero; One (Clbt.Node t rt)].
 Proof.
 	intros l a t rt n Hl.
 	apply BinNat.is_canonical_struct_equiv in Hl.
@@ -563,16 +561,16 @@ Fixpoint head (l : t) : option A :=
 match l with
 | [] => None
 | Zero :: t => head t
-| One clbt :: _ => Some (CLBT.head clbt)
+| One clbt :: _ => Some (Clbt.head clbt)
 end.
 
-Local Lemma head_cons_aux : forall l t, head (cons_aux t l) = Some (CLBT.head t).
+Local Lemma head_cons_aux : forall l t, head (cons_aux t l) = Some (Clbt.head t).
 Proof.
 	intro l.
 	{	induction l as [|bl tl HR]; [|destruct bl]; intro t; simpl.
 	+	reflexivity.
 	+	reflexivity.
-	+	replace (CLBT.head t) with (CLBT.head (CLBT.Node t0 t)) by reflexivity.
+	+	replace (Clbt.head t) with (Clbt.head (Clbt.Node t0 t)) by reflexivity.
 		apply HR.
 	}
 Qed.
@@ -601,7 +599,7 @@ Fixpoint uncons (l : t) : option (CLBT * t) :=
 	| Zero :: t =>
 		match uncons t with
 		| None => None
-		| Some (clbt, r) => Some (CLBT.right clbt, One (CLBT.left clbt) :: r)
+		| Some (clbt, r) => Some (Clbt.right clbt, One (Clbt.left clbt) :: r)
 		end
 	end.
 
@@ -610,7 +608,7 @@ Functional Scheme uncons_ind := Induction for uncons Sort Prop.
 Lemma uncons_valid : forall l n t r,
 		valid n l ->
 		Some (t, r) = uncons l ->
-		CLBT.is_valid n t /\ valid n r.
+		Clbt.is_valid n t /\ valid n r.
 Proof.
 	intro l.
 	{	induction l as [|bl tl HR]; [discriminate|destruct bl];
@@ -618,8 +616,8 @@ Proof.
 	+	destruct (uncons tl) as [p|]; [destruct p|discriminate].
 		destruct (HR _ _ _ H1 eq_refl).
 		inversion_clear H.
-		split; [apply CLBT.right_valid; assumption|].
-		apply valid_one; [apply CLBT.left_valid|]; assumption.
+		split; [apply Clbt.right_valid; assumption|].
+		apply valid_one; [apply Clbt.left_valid|]; assumption.
 	+	inversion_clear H0.
 		{	destruct tl; inversion_clear H.
 		+	split; [assumption|apply valid_Nil].
@@ -666,7 +664,7 @@ Lemma cons_tail : forall (l : t) (a : A),
 	is_canonical l -> tail (cons a l) = l.
 Proof.
 	intros l a H.
-	pose proof (HR := cons_uncons _ (CLBT.singleton a) H).
+	pose proof (HR := cons_uncons _ (Clbt.singleton a) H).
 	unfold tail, cons.
 	rewrite HR.
 	reflexivity.
@@ -717,7 +715,7 @@ Record valid_zipper (zip : zipper) :=
 {
 	dec_rtl : valid (S (length zip.(zip_dl))) zip.(zip_tl);
 	dec_rdl : valid_dt (length zip.(zip_dl)) zip.(zip_dl);
-	dec_rt : CLBT.is_valid (length zip.(zip_dl)) zip.(zip_tree);
+	dec_rt : Clbt.is_valid (length zip.(zip_dl)) zip.(zip_tree);
 	del_rn : length zip.(zip_nb) = length zip.(zip_dl);
 }.
 
@@ -930,8 +928,8 @@ Definition drop_aux zip :=
 Fixpoint scatter t tl dn :=
 	match dn with
 	| [] => (t, tl)
-	| 1 :: tn => scatter (CLBT.right t) (One (CLBT.left t) :: tl) tn
-	| 0 :: tn => scatter (CLBT.left t) (Zero :: tl) tn
+	| 1 :: tn => scatter (Clbt.right t) (One (Clbt.left t) :: tl) tn
+	| 0 :: tn => scatter (Clbt.left t) (Zero :: tl) tn
 	end.
 
 Definition drop l n :=
@@ -942,8 +940,8 @@ Definition drop l n :=
 	end.
 
 Lemma scatter_valid : forall t tl dn,
-		CLBT.is_valid (length dn) t -> valid (length dn) tl ->
-		CLBT.is_valid 0 (fst (scatter t tl dn)) /\ is_valid (snd (scatter t tl dn)).
+		Clbt.is_valid (length dn) t -> valid (length dn) tl ->
+		Clbt.is_valid 0 (fst (scatter t tl dn)) /\ is_valid (snd (scatter t tl dn)).
 Proof.
 	intros t.
 	{	induction t as [|l HRl r HRr]; intros tl dn Ht Htl;
@@ -961,8 +959,8 @@ Proof.
 Qed.
 
 Lemma scatter_lookup : forall dn t tl,
-		CLBT.is_valid (length dn) t ->
-		fst (scatter t tl dn) = CLBT.Leaf (CLBT.lookup t (BinNat.complement dn)).
+		Clbt.is_valid (length dn) t ->
+		fst (scatter t tl dn) = Clbt.Leaf (Clbt.lookup t (BinNat.complement dn)).
 Proof.
 	intro dn.
 	{	induction dn as [|bn tn HR]; intros t tl Ht;
@@ -996,13 +994,13 @@ Proof.
 	intro dn.
 	{	induction dn as [|bn tn HR]; [|destruct bn]; intro t; simpl.
 	+	reflexivity.
-	+	specialize (HR (CLBT.left t)).
+	+	specialize (HR (Clbt.left t)).
 		rewrite scatter_tl_aux.
 		destruct scatter.
 		simpl in *; unfold strip in *.
 		rewrite map_app, HR.
 		reflexivity.
-	+	specialize (HR (CLBT.right t)).
+	+	specialize (HR (Clbt.right t)).
 		rewrite scatter_tl_aux.
 		destruct scatter.
 		simpl in *; unfold strip in *.
@@ -1012,7 +1010,7 @@ Proof.
 Qed.
 
 Lemma scatter_cons : forall n t,
-		CLBT.is_valid n t ->
+		Clbt.is_valid n t ->
 		(uncurry cons_aux) (scatter t [] (repeat 1 n)) = (repeat Zero n) ++ [One t].
 Proof.
 	intro n.
@@ -1100,7 +1098,7 @@ End drop.
 Definition lookup l n :=
 	match open l n with
 	| Some {|zip_tree := t; zip_nb := an|}
-		=> Some (CLBT.lookup t (BinNat.complement an))
+		=> Some (Clbt.lookup t (BinNat.complement an))
 	| _ => None
 	end.
 
@@ -1116,8 +1114,8 @@ Proof.
 	destruct Hv as [_ _ Ht Hlen].
 	destruct zip as [tl dl t an]; simpl in *.
 	rewrite <- Hlen in Ht.
-	pose proof (CLBT.open_lookup t an Ht).
-	destruct CLBT.open.
+	pose proof (Clbt.open_lookup t an Ht).
+	destruct Clbt.open.
 	pose proof (Hsl := scatter_lookup an t (Zero :: tl) Ht).
 	destruct scatter; simpl in *.
 	rewrite Hsl.
@@ -1149,7 +1147,7 @@ Qed.
 Definition update l n a :=
 	match open l n with
 	| Some zip =>
-		plug (One (CLBT.update zip.(zip_tree) (BinNat.complement zip.(zip_nb)) a)
+		plug (One (Clbt.update zip.(zip_tree) (BinNat.complement zip.(zip_nb)) a)
 				  :: zip.(zip_tl)) zip.(zip_dl)
 	| _ => l
 	end.
@@ -1162,16 +1160,16 @@ Proof.
 	destruct open as [zip|]; [|assumption].
 	destruct (Hvalid zip) as [Htl Hdl Ht Hnb]; [assumption|reflexivity|].
 	destruct zip as [tl dl t nb]; simpl in *.
-	pose proof (Hop := CLBT.make_zip_valid _ _ Ht).
+	pose proof (Hop := Clbt.make_zip_valid _ _ Ht).
 	rewrite <- Hnb in Hop.
-	apply CLBT.open_valid in Hop.
+	apply Clbt.open_valid in Hop.
 	rewrite Hnb in Hop.
 	rewrite <- BinNat.complement_length in Hnb.
-	destruct CLBT.open as [ot odt], Hop as [Hot Hodt].
+	destruct Clbt.open as [ot odt], Hop as [Hot Hodt].
 	apply (plug_valid _ _ (length dl)); [|assumption].
 	apply valid_one; [|assumption].
 	rewrite <- Hnb.
-	apply CLBT.update_valid.
+	apply Clbt.update_valid.
 	rewrite Hnb.
 	assumption.
 Qed.

@@ -381,7 +381,7 @@ Proof.
 	+	apply (f_equal (fun l => nth (length (rev dl1)) l (RAL.One t))) in Hzlookup1.
 		rewrite nth_middle in Hzlookup1.
 		{	rewrite (list_select_neq _ (rev dl) tl _
-						 (RAL.One (RAL.CLBT.update t (BinNat.complement nb) a)))
+						 (RAL.One (Clbt.update t (BinNat.complement nb) a)))
 				in Hzlookup1.
 		+	simpl in Hzlookup1.
 			rewrite <- (rev_length dl2), <- (rev_length dl1) in Hdl.
