@@ -1,3 +1,5 @@
+From QuickChick Require Import QuickChick Tactics.
+
 Require Import Arith Lists.List FunInd.
 Require structure.tree.Clbt numerical.binary.BinNat.
 Require Import NumRep.utils.Utils.
@@ -1181,32 +1183,126 @@ Section create.
 Fixpoint create_aux n t :=
 	match n with
 	| [] => []
-	| 0 :: tn => Zero :: create_aux tn (CLBT.Node t t)
-	| 1 :: tn => One t :: create_aux tn (CLBT.Node t t)
+	| 0 :: tn => Zero :: create_aux tn (Clbt.Node t t)
+	| 1 :: tn => One t :: create_aux tn (Clbt.Node t t)
 	end.
 
 Functional Scheme create_aux_ind := Induction for create_aux Sort Prop.
 
-Definition create n a := create_aux n (CLBT.singleton a).
+Definition create n a := create_aux n (Clbt.singleton a).
 
 Lemma create_valid : forall n a, is_valid (create n a).
 Proof.
 	intros n a.
-	set (t := CLBT.singleton a).
-	enough (forall d, CLBT.is_valid d t -> valid d (create_aux n (CLBT.singleton a)));
-		[apply H, CLBT.singleton_valid|].
-	{	functional induction (create_aux n (CLBT.singleton a));
+	set (t := Clbt.singleton a).
+	enough (forall d, Clbt.is_valid d t -> valid d (create_aux n (Clbt.singleton a)));
+		[apply H, Clbt.singleton_valid|].
+	{	functional induction (create_aux n (Clbt.singleton a));
 			intros d Ht; simpl in *.
 	+	apply valid_Nil.
 	+	apply valid_zero.
 		apply IHl.
-		apply CLBT.valid_Node; assumption.
+		apply Clbt.valid_Node; assumption.
 	+	apply valid_one; [assumption|].
 		apply IHl.
-		apply CLBT.valid_Node; assumption.
+		apply Clbt.valid_Node; assumption.
 	}
 Qed.
 
 End create.
 
 End RAL.
+
+(*********************************)
+(* Quick-chick generators *)
+
+Section GMonadDef.
+Instance GMonad : `{Monad G} | 3 :=
+  {
+    ret := @returnGen;
+    bind := @bindGen
+  }.
+End GMonadDef.
+
+Module DoNotation.
+Notation "'do!' X <- A ; B" :=
+  (bindGen A (fun X => B))
+    (at level 200, X ident, A at level 100, B at level 200).
+End DoNotation.
+
+Import DoNotation.
+
+
+#[export] Instance ShowBIT {A} `{Show A} : Show (@BIT A) :=
+  {| show := fun b =>
+       match b with
+         | Zero => "Zero"%string
+         | One t => ("One< " ++  @show _ Clbt.ShowT t ++ " >")%string
+       end
+  |}.
+
+#[export] Instance shrinkBIT {A} `{s: Shrink A} : Shrink (@BIT A) :=
+  {| shrink := fun x => match x with
+                        | One t => Zero :: List.map One (@shrink (@Clbt.t A) Clbt.Shrinkt t)
+                        | Zero => []
+                        end |}.
+
+Definition lift_Bit {A} `{g : G A} (n: nat) (b: BinNat.Bit): G (@BIT A) :=
+  match b with
+    | 0 => ret Zero
+    | 1 => do! t <- @arbitrarySized _ (@Clbt.GenSizedt A g) n ;
+           ret (One t)
+  end.
+
+Definition GenBIT {A} `{g : G A} (n: nat) : G (@BIT A) :=
+  do! b <- BinNat.GenBit ;
+  @lift_Bit _ g n b.
+
+Fixpoint list_mapi_aux {A B : Type}(n: nat)(f : nat -> A -> B)(l : list A): list B :=
+  match l with
+  | [] => []
+  | a :: t => f n a :: list_mapi_aux (n+1) f t
+  end.
+
+Definition list_mapi {A B : Type}(f : nat -> A -> B)(l : list A): list B :=
+  list_mapi_aux 0 f l.
+
+Fixpoint list_traverse {A : Type}(l: list (G A)): G (list A) :=
+  match l with
+  | [] => ret []
+  | x :: xs => do! v <- x;
+               do! vs <- list_traverse xs;
+               ret (v :: vs)
+  end.
+
+Definition lift_bin {A} `{g : G A} (bs: BinNat.t) : G (@t A) :=
+  list_traverse (list_mapi (fun k b => @lift_Bit _ g k b) bs).
+
+Definition GenT {A} `{g : G A} : G (@t A) :=
+  do! bs <- BinNat.GenT;
+  @lift_bin _ g bs.
+
+
+(*
+Sample (@GenT _ (choose (0, 42)%nat)).
+ ===> QuickChecking (@GenT _ (choose (0, 42)%nat))
+        [[One< Leaf 1 >]; []; [Zero; Zero]; [One< Leaf 15 >; One< Node (Leaf 0) (Leaf 15
+        Time Elapsed: 0.002860s *)
+
+Definition GenSizedT {A} `{g : G A} : GenSized (@t A) :=
+  {| arbitrarySized := fun n =>
+       do! bs <- @arbitrarySized _ BinNat.GenSizedT n ;
+         @lift_bin _ g bs |}.
+
+(*
+Sample (@arbitrarySized _ (@GenSizedT _ (choose (0, 42)%nat)) 3).
+===> QuickChecking (@arbitrarySized _ GenSizedT 3)
+     [[One]; [Zero; One]; [One]; []; [Zero; One]; [One; One]; []; [One]; []; [One]; [Zero; One]]
+     Time Elapsed: 0.002629s
+*)
+
+(* XXX: decidable equality *)
+#[export] Instance Eq__Dec  {A} `{Dec A} (x y : @t A) : Dec (x = y).
+Admitted.
+
+(*********************************)
