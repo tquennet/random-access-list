@@ -1,3 +1,5 @@
+From QuickChick Require Import QuickChick Tactics.
+
 Require Import Lists.List FunInd.
 Require Import Init.Nat.
 Require Import utils.Utils.
@@ -98,6 +100,13 @@ Fixpoint inc n :=
 	| 0 :: t => 1 :: t
 	| 1 :: t => 0 :: inc t
 	end.
+
+Fixpoint from_nat (n : nat) : t :=
+  match n with
+  | O => zero
+  | S n => inc (from_nat n)
+  end.
+
 
 Functional Scheme inc_ind := Induction for inc Sort Prop.
 
@@ -1137,6 +1146,74 @@ Proof.
 		contradiction.
 	}
 Qed.
+
+(*********************************)
+(* Quick-chick generators *)
+
+Definition bin_eqb := eqb.
+
+Section GMonadDef.
+Instance GMonad : `{Monad G} | 3 :=
+  {
+    ret := @returnGen;
+    bind := @bindGen
+  }.
+End GMonadDef.
+
+Module DoNotation.
+Notation "'do!' X <- A ; B" :=
+  (bindGen A (fun X => B))
+    (at level 200, X ident, A at level 100, B at level 200).
+End DoNotation.
+
+Import DoNotation.
+
+#[export] Instance ShowBit : Show Bit :=
+  {| show := fun b =>
+       match b with
+         | Zero => "Zero"%string
+         | One => "One"%string
+       end
+  |}.
+
+(* Based on shrinkBool *)
+#[export] Instance shrinkBit : Shrink Bit :=
+  {| shrink := fun x => match x with One => [Zero] | Zero => [] end |}.
+
+Definition GenBit := elems_ Zero [ Zero ; One ].
+Definition GenT : G t := listOf GenBit.
+
+(*
+Sample (GenT).
+
+===> QuickChecking GenT
+     [[Zero]; [Zero; Zero; One; Zero; One; Zero; Zero; Zero]; [One; One; Zero]; [One; One; Zero]; []; [One]; []; [Zero; Zero; One]; [Zero; One]; []; []]
+     Time Elapsed: 0.002667s
+*)
+
+Definition GenSizedT : GenSized t :=
+  {| arbitrarySized := fun n =>
+       do! x <- choose (0, n)%nat ;
+       ret (from_nat x) |}.
+
+(*
+===> QuickChecking (@arbitrarySized _ GenSizedT 3)
+     [[One]; [Zero; One]; [One]; []; [Zero; One]; [One; One]; []; [One]; []; [One]; [Zero; One]]
+     Time Elapsed: 0.002629s
+*)
+
+(* XXX: decidable equality *)
+#[export] Instance Eq__Dec (x y : t) : Dec (x = y).
+Admitted.
+
+(*
+Lemma compare_decomp_Eq : forall n m,
+		is_canonical n -> is_canonical m ->
+		Eq = compare n m <-> n = m.
+*)
+
+(*********************************)
+
 
 Module Notations.
 
