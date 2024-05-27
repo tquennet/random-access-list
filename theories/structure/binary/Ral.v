@@ -895,56 +895,113 @@ Qed.
 
 Definition dec_zip zip :=
 	match BinNat.dt_dec zip.(zip_nb) with
-	| (false, _) => open_borrow zip.(zip_tl) [] (repeat 1 (length zip.(zip_dl))) zip.(zip_dl)
+	| (false, r) => open_borrow zip.(zip_tl) [] (1 :: r)
+									   (One zip.(zip_tree) :: zip.(zip_dl))
 	| (true, r) => Some (mkZip zip.(zip_tl) zip.(zip_dl) zip.(zip_tree) r)
 	end.
 
-
-(*Lemma open_borrow_zero : forall l dl dn1 dn2 zip,
-		BinNat.dt_dec dn1 = (true, dn2) ->
-		open_borrow l [] dn1 dl = Some zip ->
-		open_borrow l [] dn2 dl = dec_zip zip.
+Lemma open_aux_borrow_cons : forall l n dbn dral,
+		BinNat.is_canonical_struct n ->
+		open_aux l (BinNat.inc n) dbn dral = open_borrow l n dbn dral.
 Proof.
 	intro l.
-	{	induction l as [|bl tl HR]; [|destruct bl];
-			intros dl dn1 dn2 zip Hd H; simpl in *.
-	+	discriminate.
-	+	assert (Hdr : (BinNat.dt_dec (1 :: dn1) = (true, 1 :: dn2)))
-			by (simpl; rewrite Hd; reflexivity).
-		specialize (HR _ _ _ _ Hdr H).
-		assumption.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intros n dbn dral Hn;
+			(destruct n as [|bn tn];
+		 	 	[|destruct bn; apply BinNat.is_canonical_struct_tl in Hn as Htn]);
+			try reflexivity.
+	+	apply HR; assumption.
+	+	destruct tn as [|bn tn]; [discriminate|].
+		reflexivity.
+	+	apply HR; assumption.
+	}
+Qed.
+
+Lemma open_aux_dt_true : forall l n dbn dral zip dd,
+		(BinNat.dt_dec dbn) = (true, dd) ->
+		(open_borrow l n dbn dral = Some zip ->
+			open_borrow l n dd dral = dec_zip zip)
+		/\ (open_aux l n dbn dral = Some zip ->
+			open_aux l n dd dral = dec_zip zip).
+Proof.
+	intro l.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intros n dbn dral zip dd Hdd;
+			assert (Hsdd : forall b, BinNat.dt_dec (b :: dbn) = (true, b :: dd))
+				by (intro b; simpl; rewrite Hdd; destruct b; reflexivity);
+			(destruct n as [|bn tn]; [|destruct bn]); split; intro H; simpl in *;
+			try discriminate.
+	+	specialize (Hsdd 1).
+		apply (HR [] (1 :: dbn) _ _ (1 :: dd)); assumption.
+	+	specialize (Hsdd 1).
+		apply (HR _ (1 :: dbn) _ _ (1 :: dd)); assumption.
+	+	specialize (Hsdd 0).
+		apply (HR _ (0 :: dbn) _ _ (0 :: dd)); assumption.
+	+	specialize (Hsdd 0).
+		apply (HR _ (0 :: dbn) _ _ (0 :: dd)); assumption.
+	+	specialize (Hsdd 1).
+		apply (HR _ (1 :: dbn) _ _ (1 :: dd)); assumption.
 	+	inversion_clear H.
 		unfold dec_zip; simpl.
-		rewrite Hd.
+		rewrite Hdd.
 		reflexivity.
+	+	specialize (Hsdd 0).
+		apply (HR _ (0 :: dbn) _ _ (0 :: dd)); assumption.
+	+	specialize (Hsdd 1).
+		apply (HR _ (1 :: dbn) _ _ (1 :: dd)); assumption.
+	+	specialize (Hsdd 1).
+		apply (HR _ (1 :: dbn) _ _ (1 :: dd)); assumption.
+	+	{	destruct tn as [|bn tn].
+		+	inversion_clear H.
+			unfold dec_zip; simpl.
+			rewrite Hdd.
+			reflexivity.
+		+	specialize (Hsdd 0).
+			apply (HR _ (0 :: dbn) _ _ (0 :: dd)); assumption.
+		}
 	}
 Qed.
 
-Lemma open_aux_inc : forall l n dl dn1 dn2 zip,
-		BinNat.dt_dec dn1 = (false, dn2) ->
-		(open_aux l n dn1 dl = Some zip /\ open_borrow l n dn1 dl = Some zip) ->
-		(open_aux l (BinNat.inc n) dn2 dl = dec_zip zip /\
-		open_borrow l (BinNat.inc n) dn2 dl = dec_zip zip).
+
+Lemma open_aux_cons : forall l n dbn dral zip dd,
+		BinNat.is_canonical_struct n ->
+		(BinNat.dt_dec dbn) = (false, dd) ->
+		(open_borrow l n dbn dral = Some zip ->
+			open_borrow l (BinNat.inc n) dd dral = dec_zip zip)
+		/\ (open_aux l n dbn dral = Some zip ->
+			open_borrow l n dd dral = dec_zip zip).
 Proof.
 	intro l.
-	{	induction l as [|bl tl HR]; intros n dl dn1 dn2 zip Hd H;
-			[|destruct bl; (destruct n as [|bn tn]; [|destruct bn])];
-			destruct H as [Ha Hb]; try discriminate; split.
-	+	simpl.
-		assert (Hdr : BinNat.dt_dec (1 :: dn1) = (true, (0 :: dn2)))
-			by (simpl; rewrite Hd; reflexivity).
-		apply (open_borrow_zero _ _ (1 :: dn1)).
-	+	assert (Hdr : BinNat.dt_dec (0 :: dn1) = (false, (1 :: dn2)))
-			by (simpl; destruct BinNat.dt_dec, b; [discriminate|inversion_clear Hd; reflexivity]).
-		specialize (HR _ _ _ _ _ Hdr (or_intror H)).
+	{	induction l as [|bl tl HR]; [|destruct bl]; intros n dbn dral zip dd Hn Hdd;
+			(destruct n as [|bn tn]; [|destruct bn;
+				apply BinNat.is_canonical_struct_tl in Hn as Htn]);
+			split ; intro H; simpl in *;
+			assert (BinNat.dt_dec (1 :: dbn) = (true, 0 :: dd))
+				by (simpl; rewrite Hdd; reflexivity);
+			assert (BinNat.dt_dec (0 :: dbn) = (false, 1 :: dd))
+				by (simpl; rewrite Hdd; reflexivity);
+			try discriminate.
+	+	apply (open_aux_dt_true tl [] (1 :: dbn)); assumption.
+	+	apply (open_aux_dt_true tl tn (1 :: dbn)); assumption.
+	+	apply (HR tn (0 :: dbn)); assumption.
+	+	apply (HR tn (0 :: dbn)); assumption.
+	+	apply (open_aux_dt_true tl tn (1 :: dbn)); assumption.
+	+	inversion_clear H.
+		unfold dec_zip; simpl.
+		rewrite Hdd.
+		reflexivity.
+	+	apply (HR tn (0 :: dbn)); assumption.
+	+	apply (open_aux_dt_true tl tn (1 :: dbn)); assumption.
+	+	rewrite open_aux_borrow_cons; [|assumption].
+		apply (open_aux_dt_true tl tn (1 :: dbn)); assumption.
+	+	{	destruct tn as [|bn tn].
+		+	inversion_clear H.
+			unfold dec_zip; simpl.
+			rewrite Hdd.
+			reflexivity.
+		+	apply (HR (bn :: tn) (0 :: dbn)); assumption.
+		}
 	}
 Qed.
 
-Lemma open_inc : forall l n zip,
-		open l n = Some zip ->
-		open l (BinNat.inc n) = dec_zip zip.
-Proof.
-Qed.*)
 End open.
 
 Section drop.
