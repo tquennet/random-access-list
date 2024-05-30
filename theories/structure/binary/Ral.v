@@ -1569,6 +1569,16 @@ Proof.
 	apply head_cons.
 Qed.
 
+Lemma lookup_zero : forall l,
+		is_canonical l ->
+		lookup l [] = head l.
+Proof.
+	intros l Hl.
+	apply canonical_valid in Hl as Hvl.
+	apply is_canonical_struct_equiv in Hl.
+	rewrite lookup_drop, drop_as_tail; [|assumption|reflexivity|assumption].
+	reflexivity.
+Qed.
 Lemma lookup_inc : forall l n,
 	 	is_canonical l ->
 		BinNat.is_canonical n ->
@@ -1638,6 +1648,39 @@ Proof.
 Qed.
 
 End update.
+
+Lemma comprehension : forall l0 l1,
+		is_canonical l0 -> is_canonical l1 ->
+		(forall n, BinNat.is_canonical n -> lookup l0 n = lookup l1 n) ->
+		l0 = l1.
+Proof.
+	intros l0 l1 Hl0.
+	revert l1.
+	{	induction Hl0 as [|l0 a Hl0 HR]; intros l1 Hl1 H;
+			destruct Hl1 as [|l1 b Hl1]; simpl.
+	+	reflexivity.
+	+	specialize (H _ BinNat.canonical_0).
+		rewrite !lookup_zero, head_cons in H;
+			[|apply canonical_Cons; assumption|apply canonical_Empty].
+		discriminate.
+	+	specialize (H _ BinNat.canonical_0).
+		rewrite !lookup_zero, head_cons in H;
+			[|apply canonical_Empty|apply canonical_Cons; assumption].
+		discriminate.
+	+	pose proof (H0 := H _ BinNat.canonical_0).
+		pose proof (canonical_Cons _ a Hl0).
+		pose proof (canonical_Cons _ b Hl1).
+		rewrite !lookup_zero, !head_cons in H0; [|assumption..].
+		inversion_clear H0.
+		f_equal.
+		apply HR; [assumption|].
+		intros n Hn.
+		specialize (H _ (BinNat.canonical_inc _ Hn)).
+		rewrite !lookup_inc in H; [|assumption..].
+		rewrite !cons_tail in H; [|assumption..].
+		assumption.
+	}
+Qed.
 
 Section create.
 
