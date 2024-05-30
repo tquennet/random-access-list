@@ -101,4 +101,20 @@ Proof.
 	}
 Qed.
 		
+
+Lemma repeat_simpl : forall l (a : A) n, l = repeat a n -> l = repeat a (length l).
+Proof.
+	intros l a n.
+	revert l.
+	{	induction n as [|n HR]; intros l H.
+	+	rewrite H.
+		reflexivity.
+	+	destruct l as [|x tl]; [discriminate|].
+		inversion H; simpl.
+		f_equal.
+		apply HR.
+		reflexivity.
+	}
+Qed.
+
 End List.

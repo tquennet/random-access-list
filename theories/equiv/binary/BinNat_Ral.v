@@ -165,7 +165,7 @@ Proof.
 	}
 Qed.
 
-Theorem drop_sub_strip : forall (l : @RAL.t A) n,
+(*Theorem drop_sub_strip : forall (l : @RAL.t A) n,
 		RAL.is_canonical l -> BinNat.is_canonical n ->
 		RAL.strip (RAL.drop l n) = BinNat.sub (RAL.strip l) n.
 Proof.
@@ -196,7 +196,7 @@ Proof.
 	+	reflexivity.
 	}
 Qed.
-
+*)
 Lemma plug_strip : forall dl (l : @RAL.t A),
 	  RAL.strip (RAL.plug l dl) = rev_append (RAL.strip dl) (RAL.strip l).
 Proof.
@@ -239,6 +239,7 @@ Proof.
 	apply BinNat.is_canonical_struct_equiv in Hsl.
 	apply RAL.is_canonical_struct_equiv.
 	split; [apply RAL.update_valid; assumption|].
+	unfold RAL.is_precanonical.
 	rewrite update_strip; assumption.
 Qed.
 
@@ -421,7 +422,8 @@ Proof.
 	apply BinNat.is_canonical_struct_equiv in Hn.
 	{	split.
 	+	apply RAL.create_valid.
-	+	rewrite create_strip.
+	+	unfold RAL.is_precanonical.
+		rewrite create_strip.
 		assumption.
 	}
 Qed.

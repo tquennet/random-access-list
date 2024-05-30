@@ -154,7 +154,7 @@ Fixpoint is_canonical_struct_fix b n :=
 
 Definition is_canonical_struct n := is_canonical_struct_fix true n = true.
 
-Local Lemma is_canonical_struct_false : forall n,
+Lemma is_canonical_struct_false : forall n,
 	is_canonical_struct_fix false n = true -> is_canonical_struct n.
 Proof.
 	intros n H.
@@ -162,14 +162,14 @@ Proof.
 	assumption.
 Qed.
 
-Local Lemma is_canonical_struct_cons : forall b0 b1 n,
+Lemma is_canonical_struct_cons : forall b0 b1 n,
 	is_canonical_struct (b1 :: n) -> is_canonical_struct (b0 :: b1 :: n).
 Proof.
 	intros b0 b1 n H.
 	destruct b0; assumption.
 Qed.
 
-Local Lemma is_canonical_struct_tl : forall b n, is_canonical_struct (b :: n) -> is_canonical_struct n.
+Lemma is_canonical_struct_tl : forall b n, is_canonical_struct (b :: n) -> is_canonical_struct n.
 Proof.
 	intros b n H.
 	{	destruct n.
@@ -178,7 +178,7 @@ Proof.
 	}
 Qed.
 
-Local Lemma inc_decomp : forall (n : t),
+Lemma inc_decomp : forall (n : t),
 	exists b tn, b :: tn = inc n.
 Proof.
 	intros n.
@@ -189,7 +189,7 @@ Proof.
 	}
 Qed.
 
-Local Lemma inc_non_empty : forall n, inc n <> [].
+Lemma inc_non_empty : forall n, inc n <> [].
 Proof.
 	intro n.
 	pose (H := inc_decomp n).
@@ -198,7 +198,7 @@ Proof.
 	discriminate.
 Qed.
 
-Local Lemma is_canonical_inc_struct : forall (n : t),
+Lemma is_canonical_inc_struct : forall (n : t),
 	is_canonical_struct n ->
 	is_canonical_struct (inc n).
 Proof.
@@ -216,7 +216,7 @@ Proof.
 	}
 Qed.
 
-Local Lemma canonical_double : forall (n : t),
+Lemma canonical_double : forall (n : t),
 	is_canonical n -> is_canonical (0 :: (inc n)).
 Proof.
 	intros n H.
@@ -370,6 +370,37 @@ Fixpoint dt_dec dn :=
 		| 0, (false, r) => (false, 1 :: r)
 		end
 	end.
+
+
+Lemma dt_dec_length : forall dn dd b, dt_dec dn = (b, dd) -> length dn = length dd.
+Proof.
+	intro dn.
+	{	induction dn as [|bn tn HR]; [|destruct bn]; intros dd b H; simpl in *.
+	+	inversion_clear H.
+		reflexivity.
+	+	destruct dt_dec as [tb tdd], tb; inversion_clear H;
+			rewrite (HR tdd _ eq_refl); reflexivity.
+	+	destruct dt_dec as [tb tdd], tb; inversion_clear H;
+			rewrite (HR tdd _ eq_refl); reflexivity.
+	}
+Qed.
+
+Lemma dt_dec_zero : forall dn dd,
+		dt_dec dn = (false, dd) ->
+		dn = repeat 0 (length dn) /\ dd = repeat 1 (length dd).
+Proof.
+	intro dn.
+	{	induction dn as [|bn tn HR]; [|destruct bn]; intros dd H; simpl in *.
+	+	inversion_clear H.
+		split; reflexivity.
+	+	destruct dt_dec as [b tdd], b; [discriminate|].
+		specialize (HR tdd eq_refl).
+		inversion_clear H.
+		rewrite (proj1 HR), (proj2 HR) at 1.
+		split; reflexivity.
+	+	destruct dt_dec as [b tdd], b; discriminate.
+	}
+Qed.
 
 Lemma inc_dec : forall (n : t),
 	is_canonical n -> dec (inc n) = n.
