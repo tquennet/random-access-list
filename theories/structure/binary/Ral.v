@@ -724,6 +724,55 @@ Proof.
 	reflexivity.
 Qed.
 
+Lemma precanonical_uncons : forall l t r,
+		is_precanonical l ->
+		uncons l = Some (t, r) ->
+		is_precanonical r.
+Proof.
+	intros l t r Hl H.
+	unfold is_precanonical in *.
+	enough (He : forall b, BinNat.is_canonical_struct_fix b (strip l) = true ->
+					  is_precanonical r)
+		by (apply He in Hl; assumption).
+	revert t r H.
+	clear Hl.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intros t r H b Hl; simpl in *.
+	+	discriminate.
+	+	destruct uncons; [destruct p|discriminate]; simpl.
+		inversion_clear H; simpl.
+		apply (HR _ _ eq_refl) in Hl.
+		assumption.
+	+	destruct tl; inversion_clear H; [reflexivity|].
+		destruct b0; assumption.
+	}
+Qed.
+
+Lemma precanonical_tail : forall l,
+		is_precanonical l ->
+		is_precanonical (tail l).
+Proof.
+	intros l Hl.
+	unfold tail.
+	pose proof (precanonical_uncons l).
+	destruct uncons; [destruct p|reflexivity].
+	apply (H _ _ Hl eq_refl).
+Qed.
+
+Lemma canonical_tail : forall l,
+		is_canonical l ->
+		is_canonical (tail l).
+Proof.
+	intros l Hl.
+	apply is_canonical_struct_equiv in Hl.
+	destruct Hl as [Hvl Hl].
+	apply is_canonical_struct_equiv.
+	{	split.
+	+	apply tail_valid.
+		assumption.
+	+	apply precanonical_tail.
+		assumption.
+	}
+Qed.
 End tail.
 
 Section open.
@@ -1469,6 +1518,27 @@ Proof.
 	}
 Qed.
 
+Lemma drop_as_tail : forall l n,
+	 	is_canonical_struct 0 l ->
+		BinNat.is_canonical_struct n ->
+		drop l n = fun_pow tail (BinNat.to_nat n) l.
+Proof.
+	intros l n Hl Hn.
+	apply BinNat.is_canonical_struct_equiv in Hn.
+	apply is_canonical_struct_equiv in Hl.
+	revert l Hl.
+	{	induction Hn as [|n Hn HR]; intros l Hl; simpl.
+	+	apply drop_zero.
+		assumption.
+	+	rewrite BinNat.inc_S;simpl.
+		rewrite <- fun_pow_comm.
+		rewrite <- HR; [|assumption].
+		apply BinNat.is_canonical_struct_equiv in Hn.
+		apply is_canonical_struct_equiv in Hl.
+		apply eq_sym, drop_inc; assumption.
+	}
+Qed.
+
 End drop.
 
 Definition lookup l n :=
@@ -1499,6 +1569,24 @@ Proof.
 	apply head_cons.
 Qed.
 
+Lemma lookup_inc : forall l n,
+	 	is_canonical l ->
+		BinNat.is_canonical n ->
+		lookup l (BinNat.inc n) = lookup (tail l) n.
+Proof.
+	intros l n Hl Hn.
+	apply canonical_valid in Hl as Hvl.
+	apply tail_valid in Hvl as Hvtl.
+	apply is_canonical_struct_equiv in Hl as Hl2.
+	apply canonical_tail in Hl as Htl.
+	apply is_canonical_struct_equiv in Htl.
+	apply BinNat.is_canonical_struct_equiv in Hn as Hn2.
+	apply BinNat.canonical_inc in Hn as Hin.
+	apply BinNat.is_canonical_struct_equiv in Hin.
+	rewrite !lookup_drop, !drop_as_tail; [|assumption..].
+	rewrite BinNat.inc_S.
+	reflexivity.
+Qed.
 Section update.
 
 Definition plug (l : t) (dl : dt) := rev_append dl l.

@@ -118,3 +118,26 @@ Proof.
 Qed.
 
 End List.
+
+Section Fun.
+
+Context {A : Type} (f : A -> A).
+
+Fixpoint fun_pow n x :=
+	match n with 
+	| O => x
+	| S n => fun_pow n (f x)
+	end.
+
+Lemma fun_pow_comm : forall n x, f (fun_pow n x) = fun_pow n (f x).
+Proof.
+	intro n.
+	{	induction n as [|n HR]; intro x.
+	+	reflexivity.
+	+	simpl.
+		rewrite HR.
+		reflexivity.
+	}
+Qed.
+
+End Fun.
