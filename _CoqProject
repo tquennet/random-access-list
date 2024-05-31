@@ -1,8 +1,12 @@
 -R theories NumRep
+
+theories/utils/Utils.v
+
 theories/numerical/unary/Nat.v
 theories/structure/unary/List.v
 theories/equiv/unary/Nat_List.v
 
 theories/numerical/binary/BinNat.v
-theories/structure/tree/clbt.v
-theories/structure/binary/ral.v
+theories/structure/tree/Clbt.v
+theories/structure/binary/Ral.v
+theories/equiv/binary/BinNat_Ral.v
