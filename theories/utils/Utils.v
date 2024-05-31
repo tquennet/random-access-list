@@ -5,6 +5,12 @@ Section Option.
 
 Context {A : Type} (P : A -> Prop).
 
+Definition is_some (o : option A) :=
+	match o with
+	| None => false
+	| Some _ => true
+	end.
+
 Variant option_predicate : option A -> Prop :=
 	| OP_None : option_predicate None
 	| OP_Some : forall a, P a -> option_predicate (Some a).
@@ -15,11 +21,6 @@ Definition option_default d (o : option A) :=
 	| Some x => x
 	end.
 
-(*Variant option_bpredicate : option A -> option A -> Prop :=
-	| OBP_None : option_bpredicate None None
-	| OBP_Some : forall x y,
-		BP x y -> option_bpredicate (Some x) (Some y).
- *)
 End Option.
 
 Section Options.
