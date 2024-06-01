@@ -5,6 +5,12 @@ Section Option.
 
 Context {A : Type} (P : A -> Prop).
 
+Definition is_some (o : option A) :=
+	match o with
+	| None => false
+	| Some _ => true
+	end.
+
 Variant option_predicate : option A -> Prop :=
 	| OP_None : option_predicate None
 	| OP_Some : forall a, P a -> option_predicate (Some a).
@@ -15,11 +21,6 @@ Definition option_default d (o : option A) :=
 	| Some x => x
 	end.
 
-(*Variant option_bpredicate : option A -> option A -> Prop :=
-	| OBP_None : option_bpredicate None None
-	| OBP_Some : forall x y,
-		BP x y -> option_bpredicate (Some x) (Some y).
- *)
 End Option.
 
 Section Options.
@@ -101,4 +102,43 @@ Proof.
 	}
 Qed.
 		
+
+Lemma repeat_simpl : forall l (a : A) n, l = repeat a n -> l = repeat a (length l).
+Proof.
+	intros l a n.
+	revert l.
+	{	induction n as [|n HR]; intros l H.
+	+	rewrite H.
+		reflexivity.
+	+	destruct l as [|x tl]; [discriminate|].
+		inversion H; simpl.
+		f_equal.
+		apply HR.
+		reflexivity.
+	}
+Qed.
+
 End List.
+
+Section Fun.
+
+Context {A : Type} (f : A -> A).
+
+Fixpoint fun_pow n x :=
+	match n with 
+	| O => x
+	| S n => fun_pow n (f x)
+	end.
+
+Lemma fun_pow_comm : forall n x, f (fun_pow n x) = fun_pow n (f x).
+Proof.
+	intro n.
+	{	induction n as [|n HR]; intro x.
+	+	reflexivity.
+	+	simpl.
+		rewrite HR.
+		reflexivity.
+	}
+Qed.
+
+End Fun.

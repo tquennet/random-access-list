@@ -269,8 +269,24 @@ Inductive is_canonical : t -> Prop :=
 		  is_canonical l -> is_canonical (cons a l).
 
 
-Notation is_precanonical l := (BinNat.is_canonical_struct (strip l)).
+Definition is_precanonical l := (BinNat.is_canonical_struct (strip l)).
 Definition is_canonical_struct n l := valid n l /\ is_precanonical l.
+
+Lemma precanonical_cons_aux : forall l t, is_precanonical l -> is_precanonical (cons_aux t l).
+Proof.
+	intros l t H.
+	unfold is_precanonical.
+	enough (BinNat.is_canonical_struct_fix false (strip (cons_aux t l)) = true)
+		by (apply BinNat.is_canonical_struct_false; assumption).
+	revert t H.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intros t H; simpl in *.
+	+	reflexivity.
+	+	apply BinNat.is_canonical_struct_tl in H.
+		assumption.
+	+	apply HR.
+		assumption.
+	}
+Qed.
 
 Lemma is_canonical_struct_tl : forall n b l,
 	  is_canonical_struct n (b :: l) -> is_canonical_struct (S n) l.
@@ -406,6 +422,17 @@ Fixpoint trim l :=
 
 Functional Scheme trim_ind := Induction for trim Sort Prop.
 
+Lemma trim_precanonical : forall l, is_precanonical (trim l).
+Proof.
+	intro l.
+	{	functional induction (trim l); simpl in *.
+	+	reflexivity.
+	+	reflexivity.
+	+	rewrite e1 in IHl0.
+		destruct y0; assumption.
+	+	assumption.
+	}
+Qed.
 Lemma trim_canonical : forall l, is_valid l -> is_canonical (trim l).
 Proof.
 	intros l H.
@@ -604,8 +631,24 @@ Fixpoint uncons (l : t) : option (CLBT * t) :=
 		| Some (clbt, r) => Some (CLBT.right clbt, One (CLBT.left clbt) :: r)
 		end
 	end.
-
 Functional Scheme uncons_ind := Induction for uncons Sort Prop.
+
+Definition uncons_map_trim : option (CLBT * t) -> option (CLBT * t) :=
+	option_map (fun '(clbt, r) => (clbt, trim r)).
+Lemma trim_uncons : forall l, uncons_map_trim (uncons l) = uncons (trim l).
+Proof.
+	intro l.
+	{	induction l as [|bl tl HR]; [|destruct bl]; simpl in *.
+	+	reflexivity.
+	+	destruct (trim tl), (uncons tl) as [p|];
+			[discriminate|reflexivity|destruct p as [tt tr]|];
+			simpl in *; rewrite <- HR; reflexivity.
+	+	destruct tl; [reflexivity|].
+		remember (b :: tl) as L.
+		simpl.
+		destruct trim; reflexivity.
+	}
+Qed.
 
 Lemma uncons_valid : forall l n t r,
 		valid n l ->
@@ -644,13 +687,20 @@ Proof.
 	destruct (Hu _ _ H eq_refl).
 	assumption.
 Qed.
-
+Lemma trim_tail : forall l, trim (tail l) = tail (trim l).
+Proof.
+	intro l.
+	unfold tail.
+	pose proof (trim_uncons l).
+	destruct uncons as [p0|], uncons as [p1|]; [|discriminate..|reflexivity].
+	destruct p0, p1; simpl in *.
+	inversion_clear H.
+	reflexivity.
+Qed.
 Lemma cons_uncons : forall (l : t) (clbt : CLBT),
-	is_canonical l -> uncons (cons_aux clbt l) = Some (clbt, l).
+	is_precanonical l -> uncons (cons_aux clbt l) = Some (clbt, l).
 Proof.
 	intros l clbt Hcl.
-	apply is_canonical_struct_equiv in Hcl.
-	destruct Hcl as [_ Hcl].
 	{	functional induction (cons_aux clbt l); intros .
 	+	reflexivity.
 	+	destruct t0; [compute in Hcl; discriminate|].
@@ -666,12 +716,63 @@ Lemma cons_tail : forall (l : t) (a : A),
 	is_canonical l -> tail (cons a l) = l.
 Proof.
 	intros l a H.
+	apply is_canonical_struct_equiv in H.
+	destruct H as [_ H].
 	pose proof (HR := cons_uncons _ (CLBT.singleton a) H).
 	unfold tail, cons.
 	rewrite HR.
 	reflexivity.
 Qed.
 
+Lemma precanonical_uncons : forall l t r,
+		is_precanonical l ->
+		uncons l = Some (t, r) ->
+		is_precanonical r.
+Proof.
+	intros l t r Hl H.
+	unfold is_precanonical in *.
+	enough (He : forall b, BinNat.is_canonical_struct_fix b (strip l) = true ->
+					  is_precanonical r)
+		by (apply He in Hl; assumption).
+	revert t r H.
+	clear Hl.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intros t r H b Hl; simpl in *.
+	+	discriminate.
+	+	destruct uncons; [destruct p|discriminate]; simpl.
+		inversion_clear H; simpl.
+		apply (HR _ _ eq_refl) in Hl.
+		assumption.
+	+	destruct tl; inversion_clear H; [reflexivity|].
+		destruct b0; assumption.
+	}
+Qed.
+
+Lemma precanonical_tail : forall l,
+		is_precanonical l ->
+		is_precanonical (tail l).
+Proof.
+	intros l Hl.
+	unfold tail.
+	pose proof (precanonical_uncons l).
+	destruct uncons; [destruct p|reflexivity].
+	apply (H _ _ Hl eq_refl).
+Qed.
+
+Lemma canonical_tail : forall l,
+		is_canonical l ->
+		is_canonical (tail l).
+Proof.
+	intros l Hl.
+	apply is_canonical_struct_equiv in Hl.
+	destruct Hl as [Hvl Hl].
+	apply is_canonical_struct_equiv.
+	{	split.
+	+	apply tail_valid.
+		assumption.
+	+	apply precanonical_tail.
+		assumption.
+	}
+Qed.
 End tail.
 
 Section open.
@@ -853,18 +954,17 @@ Proof.
 	reflexivity.
 Qed.
 
-Lemma open_zero_None : forall l,
-		is_canonical l ->
-		open l [] = None ->
+Lemma open_borrow_zero_None : forall l dn dl,
+		is_precanonical l ->
+		open_borrow l [] dn dl = None ->
 		l = empty.
 Proof.
-	intros l Hl H.
-	apply is_canonical_struct_equiv in Hl.
-	destruct Hl as [_ Hl].
+	intros l dn dl Hl H.
 	destruct l; [reflexivity|].
-	enough (He : forall dn dl, BinNat.is_canonical_struct (strip (b :: l)) -> open_borrow (b :: l) [] dn dl <> None)
+	enough (He : BinNat.is_canonical_struct (strip (b :: l)) -> open_borrow (b :: l) [] dn dl <> None)
 		by (apply He in H; [contradiction|assumption]).
 	clear Hl H.
+	revert dn dl.
 	{	induction l as [|bl tl HR]; intros dn dl Hl H;
 			[|destruct bl; apply BinNat.is_canonical_struct_tl in Hl]; destruct b;
 			 simpl in *.
@@ -876,6 +976,42 @@ Proof.
 	+	discriminate.
 	}
 Qed.
+
+Lemma open_zero_None : forall l,
+		is_precanonical l ->
+		open l [] = None ->
+		l = empty.
+Proof.
+	intros l Hl H.
+	apply open_borrow_zero_None in H; assumption.
+Qed.
+Lemma open_borrow_zero : forall l dn dl zip,
+		open_borrow l [] dn dl = Some zip ->
+		zip.(zip_dl) = (repeat Zero (length zip.(zip_dl) - length dl)) ++ dl
+		/\ zip.(zip_nb) = (repeat 1 (length zip.(zip_dl) - length dl)) ++ dn.
+Proof.
+	intro l.
+	{	induction l as [|bl tl HR]; [|destruct bl];
+			intros dn dl zip H; simpl in *.
+	+	discriminate.
+	+	apply HR in H.
+		destruct H as [Hdl Hnb].
+		pose proof(Hlen := Nat.le_sub_l (length (zip_dl zip)) (length (zip_dl zip) - length (Zero :: dl))).
+		rewrite Hdl in Hlen at 1.
+		rewrite app_length, repeat_length, Nat.add_comm, Nat.add_sub in Hlen.
+		rewrite (app_assoc _ [Zero] dl) in Hdl; rewrite (app_assoc _ [1] dn) in Hnb.
+		rewrite <- repeat_cons in Hdl, Hnb.
+		assert (forall {A : Type} (e : A) n, e :: repeat e n = repeat e (S n)) by reflexivity.
+		rewrite H, <- Nat.sub_succ_l in Hdl, Hnb; [|assumption..].
+		simpl in Hdl, Hnb.
+		split; assumption.
+	+	destruct zip as [ztl zdl zt znb].
+		inversion_clear H; simpl.
+		rewrite Nat.sub_diag.
+		split; reflexivity.
+	}
+Qed.
+
 Lemma open_zero : forall l zip,
 		open l [] = Some zip ->
 		zip.(zip_dl) = repeat Zero (length zip.(zip_dl)) /\ zip.(zip_nb) = repeat 1 (length zip.(zip_dl)).
@@ -895,71 +1031,220 @@ Qed.
 
 Definition dec_zip zip :=
 	match BinNat.dt_dec zip.(zip_nb) with
-	| (false, _) => open_borrow zip.(zip_tl) [] (repeat 1 (length zip.(zip_dl))) zip.(zip_dl)
+	| (false, r) => open_borrow zip.(zip_tl) [] (1 :: r)
+									   (One zip.(zip_tree) :: zip.(zip_dl))
 	| (true, r) => Some (mkZip zip.(zip_tl) zip.(zip_dl) zip.(zip_tree) r)
 	end.
 
-
-(*Lemma open_borrow_zero : forall l dl dn1 dn2 zip,
-		BinNat.dt_dec dn1 = (true, dn2) ->
-		open_borrow l [] dn1 dl = Some zip ->
-		open_borrow l [] dn2 dl = dec_zip zip.
+Lemma open_aux_borrow_inc : forall l n dbn dral,
+		BinNat.is_canonical_struct n ->
+		open_aux l (BinNat.inc n) dbn dral = open_borrow l n dbn dral.
 Proof.
 	intro l.
-	{	induction l as [|bl tl HR]; [|destruct bl];
-			intros dl dn1 dn2 zip Hd H; simpl in *.
-	+	discriminate.
-	+	assert (Hdr : (BinNat.dt_dec (1 :: dn1) = (true, 1 :: dn2)))
-			by (simpl; rewrite Hd; reflexivity).
-		specialize (HR _ _ _ _ Hdr H).
-		assumption.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intros n dbn dral Hn;
+			(destruct n as [|bn tn];
+		 	 	[|destruct bn; apply BinNat.is_canonical_struct_tl in Hn as Htn]);
+			try reflexivity.
+	+	apply HR; assumption.
+	+	destruct tn as [|bn tn]; [discriminate|].
+		reflexivity.
+	+	apply HR; assumption.
+	}
+Qed.
+
+Lemma open_aux_dt_true : forall l n dbn dral zip dd,
+		(BinNat.dt_dec dbn) = (true, dd) ->
+		(open_borrow l n dbn dral = Some zip ->
+			open_borrow l n dd dral = dec_zip zip)
+		/\ (open_aux l n dbn dral = Some zip ->
+			open_aux l n dd dral = dec_zip zip).
+Proof.
+	intro l.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intros n dbn dral zip dd Hdd;
+			assert (Hsdd : forall b, BinNat.dt_dec (b :: dbn) = (true, b :: dd))
+				by (intro b; simpl; rewrite Hdd; destruct b; reflexivity);
+			(destruct n as [|bn tn]; [|destruct bn]); split; intro H; simpl in *;
+			try discriminate.
+	+	specialize (Hsdd 1).
+		apply (HR [] (1 :: dbn) _ _ (1 :: dd)); assumption.
+	+	specialize (Hsdd 1).
+		apply (HR _ (1 :: dbn) _ _ (1 :: dd)); assumption.
+	+	specialize (Hsdd 0).
+		apply (HR _ (0 :: dbn) _ _ (0 :: dd)); assumption.
+	+	specialize (Hsdd 0).
+		apply (HR _ (0 :: dbn) _ _ (0 :: dd)); assumption.
+	+	specialize (Hsdd 1).
+		apply (HR _ (1 :: dbn) _ _ (1 :: dd)); assumption.
 	+	inversion_clear H.
 		unfold dec_zip; simpl.
-		rewrite Hd.
+		rewrite Hdd.
 		reflexivity.
+	+	specialize (Hsdd 0).
+		apply (HR _ (0 :: dbn) _ _ (0 :: dd)); assumption.
+	+	specialize (Hsdd 1).
+		apply (HR _ (1 :: dbn) _ _ (1 :: dd)); assumption.
+	+	specialize (Hsdd 1).
+		apply (HR _ (1 :: dbn) _ _ (1 :: dd)); assumption.
+	+	{	destruct tn as [|bn tn].
+		+	inversion_clear H.
+			unfold dec_zip; simpl.
+			rewrite Hdd.
+			reflexivity.
+		+	specialize (Hsdd 0).
+			apply (HR _ (0 :: dbn) _ _ (0 :: dd)); assumption.
+		}
 	}
 Qed.
 
-Lemma open_aux_inc : forall l n dl dn1 dn2 zip,
-		BinNat.dt_dec dn1 = (false, dn2) ->
-		(open_aux l n dn1 dl = Some zip /\ open_borrow l n dn1 dl = Some zip) ->
-		(open_aux l (BinNat.inc n) dn2 dl = dec_zip zip /\
-		open_borrow l (BinNat.inc n) dn2 dl = dec_zip zip).
+
+Lemma open_aux_inc : forall l n dbn dral dd zip,
+		BinNat.is_canonical_struct n ->
+		(BinNat.dt_dec dbn) = (false, dd) ->
+		(open_borrow l n dbn dral = Some zip ->
+			open_borrow l (BinNat.inc n) dd dral = dec_zip zip)
+		/\ (open_aux l n dbn dral = Some zip ->
+			open_borrow l n dd dral = dec_zip zip).
 Proof.
 	intro l.
-	{	induction l as [|bl tl HR]; intros n dl dn1 dn2 zip Hd H;
-			[|destruct bl; (destruct n as [|bn tn]; [|destruct bn])];
-			destruct H as [Ha Hb]; try discriminate; split.
-	+	simpl.
-		assert (Hdr : BinNat.dt_dec (1 :: dn1) = (true, (0 :: dn2)))
-			by (simpl; rewrite Hd; reflexivity).
-		apply (open_borrow_zero _ _ (1 :: dn1)).
-	+	assert (Hdr : BinNat.dt_dec (0 :: dn1) = (false, (1 :: dn2)))
-			by (simpl; destruct BinNat.dt_dec, b; [discriminate|inversion_clear Hd; reflexivity]).
-		specialize (HR _ _ _ _ _ Hdr (or_intror H)).
+	{	induction l as [|bl tl HR]; [|destruct bl]; intros n dbn dral dd zip Hn Hdd;
+			(destruct n as [|bn tn]; [|destruct bn;
+				apply BinNat.is_canonical_struct_tl in Hn as Htn]);
+			split ; intro H; simpl in *;
+			assert (BinNat.dt_dec (1 :: dbn) = (true, 0 :: dd))
+				by (simpl; rewrite Hdd; reflexivity);
+			assert (BinNat.dt_dec (0 :: dbn) = (false, 1 :: dd))
+				by (simpl; rewrite Hdd; reflexivity);
+			try discriminate.
+	+	apply (open_aux_dt_true tl [] (1 :: dbn)); assumption.
+	+	apply (open_aux_dt_true tl tn (1 :: dbn)); assumption.
+	+	apply (HR tn (0 :: dbn)); assumption.
+	+	apply (HR tn (0 :: dbn)); assumption.
+	+	apply (open_aux_dt_true tl tn (1 :: dbn)); assumption.
+	+	inversion_clear H.
+		unfold dec_zip; simpl.
+		rewrite Hdd.
+		reflexivity.
+	+	apply (HR tn (0 :: dbn)); assumption.
+	+	apply (open_aux_dt_true tl tn (1 :: dbn)); assumption.
+	+	rewrite open_aux_borrow_inc; [|assumption].
+		apply (open_aux_dt_true tl tn (1 :: dbn)); assumption.
+	+	{	destruct tn as [|bn tn].
+		+	inversion_clear H.
+			unfold dec_zip; simpl.
+			rewrite Hdd.
+			reflexivity.
+		+	apply (HR (bn :: tn) (0 :: dbn)); assumption.
+		}
 	}
 Qed.
 
-Lemma open_inc : forall l n zip,
-		open l n = Some zip ->
-		open l (BinNat.inc n) = dec_zip zip.
+
+
+Lemma open_aux_None : forall l n dbn1 dbn2 dral,
+		(open_borrow l n dbn1 dral = None -> open_borrow l n dbn2 dral = None)
+		/\ (open_aux l n dbn1 dral = None -> open_aux l n dbn2 dral = None).
 Proof.
-Qed.*)
+	intros l.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intros n dbn1 dbn2 dral ;
+			(destruct n as [|bn tn]; [|destruct bn]);
+			split; intro H; simpl in *; try reflexivity.
+	+	apply (HR _ (1 :: dbn1)); assumption.
+	+	apply (HR _ (1 :: dbn1)); assumption.
+	+	apply (HR _ (0 :: dbn1)); assumption.
+	+	apply (HR _ (0 :: dbn1)); assumption.
+	+	apply (HR _ (1 :: dbn1)); assumption.
+	+	discriminate.
+	+	apply (HR _ (0 :: dbn1)); assumption.
+	+	apply (HR _ (1 :: dbn1)); assumption.
+	+	apply (HR _ (1 :: dbn1)); assumption.
+	+	destruct tn; [discriminate|].
+		apply (HR _ (0 :: dbn1)); assumption.
+	}
+Qed.
+
+Lemma open_aux_inc_None : forall l n dbn1 dbn2 dral ,
+		BinNat.is_canonical_struct n ->
+		(open_borrow l n dbn1 dral = None -> open_borrow l (BinNat.inc n) dbn2 dral = None)
+		/\ (n <> [] -> open_aux l n dbn1 dral = None -> open_borrow l n dbn2 dral = None).
+Proof.
+	intros l.
+	{	induction l as [|bl tl HR]; [|destruct bl]; intros n dbn1 dbn2 dral Hn;
+			(destruct n as [|bn tn]; [|destruct bn;
+				apply BinNat.is_canonical_struct_tl in Hn as Htn]);
+			(split; [|intro He]; intro H); simpl in *; try reflexivity.
+	+	apply (open_aux_None _ _ (1 :: dbn1)); assumption.
+	+	contradiction.
+	+	apply (open_aux_None _ _ (1 :: dbn1)); assumption.
+	+	assert (tn <> []) by (destruct tn; discriminate).
+		apply (HR _ (0 :: dbn1)); assumption.
+	+	apply (HR tn (0 :: dbn1)); assumption.
+	+	apply (open_aux_None _ _ (1 :: dbn1)); assumption.
+	+	discriminate.
+	+	contradiction.
+	+	assert (tn <> []) by (destruct tn; discriminate).
+		apply (HR _ (0 :: dbn1)); assumption.
+	+	apply (open_aux_None _ _ (1 :: dbn1)); assumption.
+	+	rewrite open_aux_borrow_inc; [|assumption].
+		apply (open_aux_None _ _ (1 :: dbn1)); assumption.
+	+	destruct tn as [|bn tn]; [discriminate|].
+		apply (HR (bn :: tn) (0 :: dbn1)); [assumption|discriminate|assumption].
+	}
+Qed.
+
+Lemma open_inc : forall l n,
+		BinNat.is_canonical_struct n ->
+		open l (BinNat.inc n) = option_join dec_zip (open l n).
+Proof.
+	intros l n Hn.
+	unfold open.
+	pose proof (Hnone := proj1 (open_aux_inc_None l n [] [] [] Hn)).
+	pose proof (Hsome := open_aux_inc l n [] [] []).
+	{	destruct open_borrow as [zip|].
+	+	specialize (Hsome zip Hn eq_refl).
+		apply proj1 in Hsome.
+		apply Hsome; reflexivity.
+	+	rewrite Hnone; reflexivity.
+	}
+Qed.
+
 End open.
 
 Section drop.
+
+Definition safe_zero l : t :=
+	match l with
+	| [] => []
+	| _ => Zero :: l
+	end.
+Lemma valid_safe_zero : forall l n, valid (S n) l -> valid n (safe_zero l).
+Proof.
+	intros l n H.
+	{	destruct l.
+	+	apply valid_Nil.
+	+	apply valid_zero.
+		assumption.
+	}
+Qed.
+Lemma canonical_safe_zero : forall l, is_precanonical l -> is_precanonical (safe_zero l).
+Proof.
+	intros l H.
+	{	destruct l as [|bl tl].
+	+	reflexivity.
+	+	assumption.
+	}
+Qed.
 
 Fixpoint scatter t tl dn :=
 	match dn with
 	| [] => (t, tl)
 	| 1 :: tn => scatter (CLBT.right t) (One (CLBT.left t) :: tl) tn
-	| 0 :: tn => scatter (CLBT.left t) (Zero :: tl) tn
+	| 0 :: tn => scatter (CLBT.left t) (safe_zero tl) tn
 	end.
 
 Definition drop l n :=
 	match open l n with
-	| Some zip => trim ((uncurry cons_aux)
-						(scatter zip.(zip_tree) (Zero :: zip.(zip_tl)) zip.(zip_nb)))
+	| Some zip => (uncurry cons_aux)
+					(scatter zip.(zip_tree) (safe_zero zip.(zip_tl)) zip.(zip_nb))
 	| _ => []
 	end.
 
@@ -975,7 +1260,7 @@ Proof.
 	+	inversion_clear Ht.
 	+	inversion_clear Ht.
 	+	inversion_clear Ht.
-		apply HRl, valid_zero; assumption.
+		apply HRl, valid_safe_zero; assumption.
 	+	inversion_clear Ht.		
 		apply HRr; [assumption|].
 		apply valid_one; assumption.
@@ -994,79 +1279,136 @@ Proof.
 	}
 Qed.
 
-Lemma scatter_tl_aux : forall t tl dn,
-		scatter t tl dn = (fun '(t, l) => (t, l ++ tl)) (scatter t [] dn).
-Proof.
-	intros t tl dn.
-	revert t tl.
-	{	induction dn as [|bn tn HR]; [|destruct bn]; intros t tl; simpl.
-	+	reflexivity.
-	+	rewrite (HR _ (Zero :: tl)), (HR _ [Zero]).
-		destruct scatter.
-		rewrite <- app_assoc.
-		reflexivity.
-	+	rewrite (HR _ (One _ :: tl)), (HR _ [One _]).
-		destruct scatter.
-		rewrite <- app_assoc.
-		reflexivity.
-	}
-Qed.
-
-Lemma scatter_strip : forall dn t,
-		strip (snd (scatter t [] dn)) = (rev dn).
+Lemma scatter_precanonical : forall dn t l,
+		is_precanonical l ->
+		is_precanonical (snd (scatter t l dn)).
 Proof.
 	intro dn.
-	{	induction dn as [|bn tn HR]; [|destruct bn]; intro t; simpl.
-	+	reflexivity.
-	+	specialize (HR (CLBT.left t)).
-		rewrite scatter_tl_aux.
-		destruct scatter.
-		simpl in *; unfold strip in *.
-		rewrite map_app, HR.
-		reflexivity.
-	+	specialize (HR (CLBT.right t)).
-		rewrite scatter_tl_aux.
-		destruct scatter.
-		simpl in *; unfold strip in *.
-		rewrite map_app, HR.
-		reflexivity.
+	{	induction dn as [|bn tn HR]; [|destruct bn]; intros t l Hl; simpl in *.
+	+	assumption.
+	+	apply HR.
+		apply canonical_safe_zero.
+		assumption.
+	+	apply HR.
+		assumption.
 	}
 Qed.
 
-Lemma scatter_cons : forall n t,
-		CLBT.is_valid n t ->
-		(uncurry cons_aux) (scatter t [] (repeat 1 n)) = (repeat Zero n) ++ [One t].
+Lemma scatter_empty_zeroes : forall n t, snd (scatter t empty (repeat 0 n)) = empty.
 Proof.
 	intro n.
-	{	induction n as [|n HR]; intros t Ht;
-		inversion_clear Ht; simpl.
+	{	induction n as [|n HR]; intro t; simpl.
 	+	reflexivity.
-	+	rewrite scatter_tl_aux.
-		specialize (HR r H0).
-		pose proof (Hs := scatter_strip (repeat 1 n) r).
-		destruct scatter as [st sl]; simpl in *.
-		rewrite app_comm_cons, repeat_cons, <- app_assoc.
-		pose proof (Hco := BinNat.canonical_ones n).
-		rewrite <- rev_repeat, <- Hs in Hco.
-		apply cons_propagate; assumption.
+	+	apply HR.
+	}
+Qed.
+Lemma scatter_zeroes : forall n t l,
+		l <> [] ->
+		snd (scatter t l (repeat 0 n)) = (repeat Zero n) ++ l.
+Proof.
+	intro n.
+	{	induction n as [|n HR]; intros t l He; simpl.
+	+	reflexivity.
+	+	rewrite app_comm_cons, repeat_cons, <- app_assoc.
+		destruct l; [contradiction|].
+		apply HR.
+		discriminate.
 	}
 Qed.
 
+Lemma scatter_cons_zero_aux : forall n k t l r,
+		CLBT.is_valid n t ->
+		cons_aux t l = (repeat Zero k) ++ r ->
+		(uncurry cons_aux) (scatter t l (repeat 1 n)) = (repeat Zero (n + k)) ++ r.
+Proof.
+	intros n.
+	{	induction n as [|n HR]; intros k t l r Ht; inversion_clear Ht; intro Hc; simpl in *.
+	+	assumption.
+	+	rewrite app_comm_cons, repeat_cons, <- app_assoc.
+		apply HR; [assumption|].
+		rewrite app_assoc, <- repeat_cons.
+		simpl.
+		rewrite <- Hc.
+		reflexivity.
+	}
+Qed.
+Lemma scatter_cons_zero : forall n t tl,
+		CLBT.is_valid n t ->
+		(uncurry cons_aux) (scatter t (safe_zero tl) (repeat 1 n)) = (repeat Zero n) ++ [One t] ++ tl.
+Proof.
+	intros n t tl Ht.
+	rewrite (plus_n_O n) at 2.
+	{	apply scatter_cons_zero_aux.
+	+	assumption.
+	+	destruct tl; reflexivity.
+	}
+Qed.
+
+Lemma scatter_dec_aux : forall dn tl t dd,
+		is_precanonical tl ->
+		CLBT.is_valid (length dn) t ->
+		BinNat.dt_dec dn = (true, dd) ->
+		tail ((uncurry cons_aux) (scatter t tl dn)) = (uncurry cons_aux) (scatter t tl dd).
+Proof.
+	intros dn.
+	{	induction dn as [|bn tdn HR]; [|destruct bn];
+			intros tl t dd Htl Ht Hdd; simpl in *.
+	+	discriminate.
+	+	destruct BinNat.dt_dec as [b tdd], b; [|discriminate].
+		inversion_clear Hdd; simpl.
+		inversion_clear Ht; simpl.
+		apply canonical_safe_zero in Htl.
+		apply HR; [assumption..|reflexivity].
+	+	pose proof (Hz := BinNat.dt_dec_zero tdn).
+		pose proof (Hl := BinNat.dt_dec_length tdn).
+		{	destruct BinNat.dt_dec as [b tdd], b.
+		+	inversion_clear Hdd; simpl.
+			inversion_clear Ht; simpl.
+			apply HR; [assumption..|reflexivity].
+		+	specialize (Hz _ eq_refl).
+			specialize (Hl _ _ eq_refl).
+			inversion_clear Hdd; simpl.
+			inversion_clear Ht; simpl.
+			rewrite (proj1 Hz), (proj2 Hz).
+			rewrite (scatter_cons_zero (length tdd)); [|rewrite <- Hl; assumption].
+			pose proof (Hzs := scatter_zeroes (length tdn) r (One l :: tl)).
+			pose proof (Hc := scatter_precanonical
+								  (repeat 0 (length tdn)) r (One l :: tl) Htl).
+			destruct scatter as [st sr]; simpl in *.
+			unfold tail.
+			rewrite cons_uncons, Hzs, Hl; [reflexivity|discriminate|assumption].
+		}
+	}
+Qed.
 Lemma drop_canonical : forall l n,
-		is_valid l -> is_canonical (drop l n).
+		is_canonical l -> is_canonical (drop l n).
 Proof.
 	intros l n Hl.
+	apply is_canonical_struct_equiv in Hl.
+	destruct Hl as [Hl Hcl].
 	unfold drop.
 	pose proof (Hvalid := open_valid l n).
+	pose proof (Hzip := open_zipper l n).
 	destruct open as [zip|]; [|apply canonical_Empty].
+	apply is_canonical_struct_equiv.
 	destruct (Hvalid zip Hl eq_refl) as [Htl Hdl Ht Hnb].
+	specialize (Hzip _ eq_refl); unfold is_zipper in Hzip.
 	destruct zip as [tl dl t nb]; simpl in *.
-	rewrite <- Hnb in Ht, Htl.
-	apply valid_zero in Htl.
-	apply trim_canonical.
-	destruct (scatter_valid _ _ _ Ht Htl), scatter.
-	simpl in *.
-	apply cons_aux_valid; assumption.
+	{	split.
+	+	rewrite <- Hnb in Ht, Htl.
+		apply valid_safe_zero in Htl.
+		pose proof (Hs := scatter_valid t (safe_zero tl) nb Ht Htl).
+		destruct scatter, Hs.
+		apply cons_aux_valid; assumption.
+	+	pose proof (Hs := scatter_precanonical nb t (safe_zero tl)).
+		rewrite Hzip, rev_append_rev in Hcl.
+		unfold is_precanonical, strip in Hcl.
+		rewrite map_app in Hcl.
+		apply -> (BinNat.is_canonical_struct_app (strip (rev dl))) in Hcl; [|discriminate].
+		destruct scatter as [st sr].
+		apply precanonical_cons_aux, Hs, canonical_safe_zero.
+		assumption.
+	}
 Qed.
 
 Lemma drop_zero : forall l,
@@ -1074,10 +1416,12 @@ Lemma drop_zero : forall l,
 		drop l [] = l.
 Proof.
 	intros l Hl.
+	apply is_canonical_struct_equiv in Hl as Hsl.
+	destruct Hsl as [_ Hsl].
 	unfold drop.
 	pose proof (Hoz := open_zero l).
 	pose proof (Hv := open_valid l []).
-	pose proof (Hozn := open_zero_None _ Hl).
+	pose proof (Hozn := open_zero_None _ Hsl).
 	pose proof (Hz := open_zipper l []).
 	destruct open as [zip|]; [|rewrite Hozn; reflexivity].
 	specialize (Hoz zip eq_refl).
@@ -1086,42 +1430,114 @@ Proof.
 	destruct Hv as [_ _ Ht _].
 	unfold is_zipper in Hz.
 	destruct zip as [tl dl t dn], Hoz as [Hdl Hnb]; simpl in *.
-	pose proof (Hsc := scatter_cons (length dl) t Ht).
-	pose proof (Hss := scatter_strip dn t).
-	rewrite Hnb, rev_repeat in Hss.
-	rewrite Hdl, rev_append_rev, rev_repeat in Hz.
-	rewrite Hnb, scatter_tl_aux, Hz.
+	pose proof (Hsc := scatter_cons_zero (length dl) t tl Ht).
+	rewrite Hnb.
 	destruct scatter as [st sl]; simpl in *.
-	rewrite trim_cons_aux.
-	{	destruct tl.
-	+	rewrite trim_last_zero, trim_strip_canonical_id; [assumption|].
-		rewrite Hss.
-		apply BinNat.is_canonical_struct_equiv, BinNat.canonical_ones.
-	+	rewrite Hz in Hl.
-		apply is_canonical_struct_equiv in Hl.
-		destruct Hl as [_ Hl].
-		unfold strip in Hl.
-		rewrite map_app, map_repeat in Hl; simpl in Hl.
-		apply BinNat.is_canonical_struct_app, BinNat.is_canonical_struct_tl,
-			(BinNat.is_canonical_struct_app (strip (sl ++ [Zero]))) in Hl;
-			[|discriminate..].
-		unfold strip in Hl.
-		rewrite map_app, <- app_assoc in Hl.
-		rewrite trim_strip_canonical_id; [|unfold strip; rewrite map_app; assumption].
-		apply (f_equal (@length BinNat.Bit)) in Hss as Hsl.
-		rewrite strip_length, repeat_length in Hsl.
-		rewrite <- Hsl in Hss.
-		apply (cons_struct_tl _ st (b :: tl)) in Hss.
-		rewrite Hss, Hsc, <- app_assoc.
+	rewrite <- rev_repeat, <- Hdl, <- rev_append_rev, <- Hz in Hsc.
+	assumption.
+Qed.
+
+Lemma drop_inc : forall l n,
+		is_canonical_struct 0 l -> BinNat.is_canonical_struct n ->
+		tail (drop l n) = drop l (BinNat.inc n).
+Proof.
+	intros l n Hl Hn.
+	destruct Hl as [Hvl Hl].
+	unfold drop.
+	unfold is_precanonical, strip in Hl.
+	pose proof (Hv := open_valid l n).
+	pose proof (Hi := open_inc l n Hn).
+	pose proof (Hz := open_zipper l n).
+	destruct (open l n) as [zip|]; rewrite Hi; [simpl|reflexivity].
+	specialize (Hz _ eq_refl); unfold is_zipper in Hz.
+	destruct (Hv _ Hvl eq_refl) as [Hvtl Hvdl Ht Hlen].
+	destruct zip as [tl dl t nb]; simpl in *.
+	rewrite <- Hlen in Ht.
+	rewrite Hz, rev_append_rev, map_app in Hl.
+	apply -> BinNat.is_canonical_struct_app in Hl; [|discriminate].
+	unfold dec_zip; simpl.
+	pose proof (Hsd := scatter_dec_aux nb (safe_zero tl) t).
+	pose proof (Hdz := BinNat.dt_dec_zero nb).
+	pose proof (Hdlen := BinNat.dt_dec_length nb).
+	{	destruct BinNat.dt_dec as [b tdd], b; simpl in *.
+	+	assert (Hpsl : is_precanonical (safe_zero tl))
+			by (apply canonical_safe_zero; assumption).
+		rewrite (Hsd _ Hpsl Ht eq_refl).
 		reflexivity.
+	+	specialize (Hdz _ eq_refl).
+		rewrite (proj1 Hdz), (proj2 Hdz).
+		pose proof (Hnone := open_borrow_zero_None tl
+								 (1 :: repeat 1 (length tdd)) (One t :: dl) Hl).
+		pose proof (Hsome := open_borrow_zero tl (1 :: repeat 1 (length tdd)) (One t :: dl)).
+		pose proof (Hzip := open_decomp_aux tl [] (1 :: repeat 1 (length tdd)) (One t :: dl)).
+		pose proof (Hv2 := open_aux_valid tl [] (1 :: repeat 1 (length tdd)) (One t :: dl)).
+		{	destruct open_borrow as [zip|].
+		+	destruct (Hsome _ eq_refl) as [Hdl Hnb].
+			specialize (Hzip zip); apply proj2 in Hzip; specialize (Hzip eq_refl).
+			specialize (Hdlen _ _ eq_refl).
+			simpl in Hv2.
+			rewrite <- Hdlen, repeat_length in Hv2.
+			destruct (Hv2 zip) as [_ _ Hvt2 Hlen2];
+				[right;reflexivity|rewrite Hlen; assumption| apply valid_DCons;
+				[apply valid_BIT_One; assumption|rewrite Hlen; assumption]|].				
+			destruct zip as [ztl zdl zt znb]; simpl in *.
+			rewrite <- (repeat_app 1 _ (S (length tdd))) in Hnb.
+			apply (f_equal (@length BinNat.Bit)) in Hnb as Hnlen.
+			rewrite repeat_length in Hnlen.
+			rewrite Hdl, !rev_append_rev, rev_app_distr, <- app_assoc in Hzip.
+			simpl in Hzip.
+			rewrite <- app_assoc in Hzip.
+			apply app_inv_head in Hzip.
+			inversion Hzip.
+			rewrite Hnb, rev_repeat.
+			assert (He : repeat Zero (length zdl - S (length dl)) ++ One zt :: ztl <> [])
+				by (intro H; apply eq_sym, app_cons_not_nil in H; contradiction).
+			destruct (repeat Zero (length zdl - S (length dl)) ++ One zt :: ztl) eqn:Hb;
+				[contradiction|simpl; rewrite <- Hb].
+			pose proof (Hzeroes := scatter_zeroes (length nb) t
+				(Zero :: repeat Zero (length zdl - S (length dl)) ++ One zt :: ztl)).
+			destruct (scatter t _ (repeat 0 (length nb))); simpl in *.
+			rewrite H0, rev_repeat, map_app in Hl.
+			apply -> BinNat.is_canonical_struct_app in Hl; [|discriminate].
+			simpl in Hl.
+			unfold tail; rewrite Hzeroes, cons_uncons;
+			  [|unfold is_precanonical, strip; rewrite app_comm_cons, !map_app, app_assoc; apply BinNat.is_canonical_struct_app; [discriminate|assumption] |discriminate].
+			assert (forall {A : Type} (e : A) n, e :: repeat e n = repeat e (S n)) by reflexivity.
+			rewrite app_comm_cons, app_assoc, H, <- repeat_app,
+				Nat.add_comm, Nat.add_succ_comm, Hdlen.
+			apply eq_sym, scatter_cons_zero.
+			rewrite <- Hnlen, Hlen2.
+			assumption.
+		+	rewrite Hnone; [|reflexivity].
+			pose proof (Hsez := scatter_empty_zeroes (length nb) t).
+			destruct (scatter t (safe_zero empty)).
+			simpl in *.
+			rewrite Hsez.
+			unfold tail; rewrite cons_uncons; reflexivity.
+		}
 	}
 Qed.
 
-(*Lemma drop_inc : forall l n,
-		is_canonical l -> BinNat.is_canonical n ->
-		tail (drop l n) = drop l (BinNat.inc n).
+Lemma drop_as_tail : forall l n,
+	 	is_canonical_struct 0 l ->
+		BinNat.is_canonical_struct n ->
+		drop l n = fun_pow tail (BinNat.to_nat n) l.
 Proof.
-Qed.*)
+	intros l n Hl Hn.
+	apply BinNat.is_canonical_struct_equiv in Hn.
+	apply is_canonical_struct_equiv in Hl.
+	revert l Hl.
+	{	induction Hn as [|n Hn HR]; intros l Hl; simpl.
+	+	apply drop_zero.
+		assumption.
+	+	rewrite BinNat.inc_S;simpl.
+		rewrite <- fun_pow_comm.
+		rewrite <- HR; [|assumption].
+		apply BinNat.is_canonical_struct_equiv in Hn.
+		apply is_canonical_struct_equiv in Hl.
+		apply eq_sym, drop_inc; assumption.
+	}
+Qed.
 
 End drop.
 
@@ -1146,14 +1562,41 @@ Proof.
 	rewrite <- Hlen in Ht.
 	pose proof (CLBT.open_lookup t an Ht).
 	destruct CLBT.open.
-	pose proof (Hsl := scatter_lookup an t (Zero :: tl) Ht).
+	pose proof (Hsl := scatter_lookup an t (safe_zero tl) Ht).
 	destruct scatter; simpl in *.
 	rewrite Hsl.
 	symmetry.
-	rewrite head_trim.
 	apply head_cons.
 Qed.
 
+Lemma lookup_zero : forall l,
+		is_canonical l ->
+		lookup l [] = head l.
+Proof.
+	intros l Hl.
+	apply canonical_valid in Hl as Hvl.
+	apply is_canonical_struct_equiv in Hl.
+	rewrite lookup_drop, drop_as_tail; [|assumption|reflexivity|assumption].
+	reflexivity.
+Qed.
+Lemma lookup_inc : forall l n,
+	 	is_canonical l ->
+		BinNat.is_canonical n ->
+		lookup l (BinNat.inc n) = lookup (tail l) n.
+Proof.
+	intros l n Hl Hn.
+	apply canonical_valid in Hl as Hvl.
+	apply tail_valid in Hvl as Hvtl.
+	apply is_canonical_struct_equiv in Hl as Hl2.
+	apply canonical_tail in Hl as Htl.
+	apply is_canonical_struct_equiv in Htl.
+	apply BinNat.is_canonical_struct_equiv in Hn as Hn2.
+	apply BinNat.canonical_inc in Hn as Hin.
+	apply BinNat.is_canonical_struct_equiv in Hin.
+	rewrite !lookup_drop, !drop_as_tail; [|assumption..].
+	rewrite BinNat.inc_S.
+	reflexivity.
+Qed.
 Section update.
 
 Definition plug (l : t) (dl : dt) := rev_append dl l.
@@ -1205,6 +1648,39 @@ Proof.
 Qed.
 
 End update.
+
+Lemma comprehension : forall l0 l1,
+		is_canonical l0 -> is_canonical l1 ->
+		(forall n, BinNat.is_canonical n -> lookup l0 n = lookup l1 n) ->
+		l0 = l1.
+Proof.
+	intros l0 l1 Hl0.
+	revert l1.
+	{	induction Hl0 as [|l0 a Hl0 HR]; intros l1 Hl1 H;
+			destruct Hl1 as [|l1 b Hl1]; simpl.
+	+	reflexivity.
+	+	specialize (H _ BinNat.canonical_0).
+		rewrite !lookup_zero, head_cons in H;
+			[|apply canonical_Cons; assumption|apply canonical_Empty].
+		discriminate.
+	+	specialize (H _ BinNat.canonical_0).
+		rewrite !lookup_zero, head_cons in H;
+			[|apply canonical_Empty|apply canonical_Cons; assumption].
+		discriminate.
+	+	pose proof (H0 := H _ BinNat.canonical_0).
+		pose proof (canonical_Cons _ a Hl0).
+		pose proof (canonical_Cons _ b Hl1).
+		rewrite !lookup_zero, !head_cons in H0; [|assumption..].
+		inversion_clear H0.
+		f_equal.
+		apply HR; [assumption|].
+		intros n Hn.
+		specialize (H _ (BinNat.canonical_inc _ Hn)).
+		rewrite !lookup_inc in H; [|assumption..].
+		rewrite !cons_tail in H; [|assumption..].
+		assumption.
+	}
+Qed.
 
 Section create.
 
