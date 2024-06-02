@@ -143,6 +143,16 @@ Fixpoint is_canonical_fix b n :=
 
 Definition is_canonical_struct n := is_canonical_fix true n = true.
 
+Lemma one_canonical : forall n, is_canonical n -> is_canonical (1 :: n).
+Proof.
+	intros n Hn.
+	apply canonical_pos.
+	{	destruct Hn.
+	+	apply positive_top.
+	+	apply positive_cons.
+		assumption.
+	}
+Qed.
 Lemma is_positive_neq_zero : forall n, is_positive n -> n <> zero.
 Proof.
 	intros n H.
@@ -217,13 +227,42 @@ Proof.
 	destruct n; [inversion_clear H|].
 	assumption.
 Qed.
-
+Lemma is_canonical_tl : forall b n, is_canonical (b :: n) -> is_canonical n.
+Proof.
+	intros b n H.
+	inversion_clear H as [|_a Ht].
+	inversion_clear Ht; [apply canonical_0|apply canonical_pos; assumption].
+Qed.
 Lemma is_canonical_struct_tl : forall b n, is_canonical_struct (b :: n) -> is_canonical_struct n.
 Proof.
 	intros b n H.
 	{	destruct n.
 	+	reflexivity.
 	+	destruct b; destruct b0; assumption.
+	}
+Qed.
+
+Lemma is_canonical_app : forall n m, is_canonical (n ++ m) -> is_canonical m.
+Proof.
+	intros n m H.
+	{	induction n as [|bn tn HR].
+	+	assumption.
+	+	{	inversion_clear H as [|_a Ht]; inversion Ht.
+		+	apply eq_sym, app_eq_nil, proj2 in H1.
+			rewrite H1.
+			apply canonical_0.
+		+	apply HR, canonical_pos.
+			assumption.
+		}
+	}
+Qed.
+Lemma app_is_positive : forall n m, is_positive m -> is_positive (n ++ m).
+Proof.
+	intros n m H.
+	{	induction n as [|bn tn HR].
+	+	assumption.
+	+	apply positive_cons.
+		apply HR.
 	}
 Qed.
 
@@ -247,7 +286,6 @@ Proof.
 		apply (Pi (0 :: (inc m))), (Pi (1 :: m)), Hp; apply positive_cons; assumption.
 	}
 Qed.
-
 Theorem canonical_induction (P : t -> Prop) :
 		P zero ->
 		(forall m, is_canonical m -> P m -> P (inc m)) ->
@@ -577,7 +615,7 @@ Proof.
 	}
 Qed.
 
-Lemma inc_dec : forall (n : t),
+Lemma dec_inc : forall (n : t),
 	is_canonical n -> dec (inc n) = n.
 Proof.
 	intros n Hn.
@@ -1067,7 +1105,6 @@ Proof.
 		assumption.
 	}
 Qed.
-
 Lemma gtb_decomp_neq : forall x n m (H : n <> m) decompn decompm,
 		is_canonical x -> is_canonical n -> is_canonical m ->
 		Some decompn = gtb_decomp x n ->
