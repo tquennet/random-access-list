@@ -765,53 +765,51 @@ Definition gtb := gtb_cont false.
 Notation "n >? m" := (gtb n m) : bin_nat_scope.
 
 Lemma gtb_cont_decomp_equiv_empty : forall n dn an,
-		is_canonical_struct n -> n <> [] ->
+		is_positive n ->
 		is_some (gtb_decomp_borrow n [] dn an) = true.
 Proof.
 	intro n.
-	{	induction n as [|bn tn HR]; [|destruct bn]; intros dn an Hn He; simpl.
-	+	contradiction.
-	+	assert (tn <> []) by (destruct tn; discriminate).
-		apply is_canonical_struct_tl in Hn.
+	{	induction n as [|bn tn HR]; [|destruct bn]; intros dn an Hn; simpl.
+	+	inversion_clear Hn.
+	+	inversion_clear Hn.
 		apply HR; assumption.
 	+	reflexivity.
 	}
 Qed.
 Lemma gtb_cont_decomp_equiv : forall n m dn an,
-		is_canonical_struct n ->
-		is_canonical_struct m ->
-		(m <> [] -> is_some (gtb_decomp_aux n m dn an) = gtb_cont true n m)
-		/\ is_some (gtb_decomp_borrow n m dn an) = gtb_cont false n m.
+		is_canonical n ->
+		(is_positive m -> is_some (gtb_decomp_aux n m dn an) = gtb_cont true n m)
+		/\ (is_canonical m -> is_some (gtb_decomp_borrow n m dn an) = gtb_cont false n m).
 Proof.
 	intro n.
-	{	induction n as [|bn tn HR]; intros m dn an Hn Hm;
-			[|destruct bn; apply is_canonical_struct_tl in Hn as Htn];
-			(destruct m as [|bm tm];
-			 	[|destruct bm; apply is_canonical_struct_tl in Hm as Htm]);
-			simpl; (split; [intro He|]); try reflexivity.
-	+	contradiction.
-	+	contradiction.
-	+	assert (tn <> []) by (destruct tn; discriminate).
+	{	induction n as [|bn tn HR]; intros m dn an Hn;
+			[|destruct bn; apply is_canonical_tl in Hn as Htn];
+			(split; intro Hm; [|inversion_clear Hm as [|_m _Hm]; try rename _Hm into Hm];
+		 		try inversion_clear Hm as [|bm tm Htm]); try destruct bm;
+			simpl; try reflexivity.
+	+	apply HR, canonical_0; assumption.
+	+	apply HR; assumption.
+	+	apply HR, canonical_pos; assumption.
+	+	inversion_clear Hn as [|_a _Htn]; inversion_clear _Htn.
 		apply gtb_cont_decomp_equiv_empty; assumption.
-	+	assert (tm <> []) by (destruct tm; discriminate).
-		apply HR; assumption.
+	+	apply HR, canonical_0; assumption.
+	+	apply HR, canonical_pos; assumption.
+	+	apply HR, canonical_pos; assumption.
+	+	destruct tn as [|bn tn]; [|destruct bn]; reflexivity.
 	+	apply HR; assumption.
+	+	destruct tm; [|apply HR; assumption].
+		destruct tn as [|bn tn]; [|destruct bn]; reflexivity.
+	+	inversion_clear Htn as [|n Hptn]; [reflexivity|].
+		destruct tn as [|bn tn]; [inversion_clear Hptn|destruct bn];
+			apply gtb_cont_decomp_equiv_empty; assumption.
 	+	apply HR; assumption.
-	+	apply HR; assumption.
-	+	contradiction.
-	+	assert (tm <> []) by (destruct tm; discriminate).
-		apply HR; assumption.
-	+	assert (tm <> []) by (destruct tm; discriminate).
-		apply HR; assumption.
-	+	destruct tm; [destruct tn as [|bn tn]; [|destruct bn]; reflexivity|].
-		apply HR; [assumption..|discriminate].
-	+	apply HR; assumption.
+	+	apply HR, canonical_pos; assumption.
 	}
 Qed.
 
 Lemma gtb_decomp_equiv : forall n m,
-		is_canonical_struct n ->
-		is_canonical_struct m ->
+		is_canonical n ->
+		is_canonical m ->
 		is_some (gtb_decomp n m) = (n >? m).
 Proof.
 	intros n m Hn Hm.
@@ -947,16 +945,16 @@ Proof.
 Qed.
 
 Lemma gtb_decomp_is_decomp : forall n m decomp,
-		is_canonical_struct m ->
+		is_canonical m ->
 		Some decomp = gtb_decomp n m ->
 		is_decomp n m decomp.
 Proof.
 	intros n m decomp Hm H.
 	unfold gtb_decomp in *.
+	apply is_canonical_equiv in Hm.
 	apply (gtb_decomp_aux_is_decomp n m n m [] []) in H;
 		(assumption || reflexivity).
 Qed.
-
 
 Lemma or_list_eq : forall (b : Bit) l1 l2 H, l1 = l2 \/ H -> b :: l1 = b :: l2 \/ H.
 Proof.
@@ -1045,7 +1043,7 @@ Proof.
 	}
 Qed.
 Theorem gtb_nat : forall n m,
-		is_canonical_struct n -> is_canonical_struct m ->
+		is_canonical n -> is_canonical m ->
 		n >? m = (to_nat m <? to_nat n)%nat.
 Proof.
 	intros n m Hn Hm.
@@ -1092,7 +1090,6 @@ Proof.
 		inversion_clear Hdn.
 		reflexivity.
 	+	apply canonical_unicity; [assumption..|].
-		apply is_canonical_equiv in Hn, Hm.
 		pose proof (Hxn := gtb_decomp_is_decomp x n decompn Hn Hdn).
 		pose proof (Hxm := gtb_decomp_is_decomp x m decompm Hm Hdm).
 		destruct decompn as [tn dn an], decompm as [tm dm am],
@@ -1116,7 +1113,6 @@ Proof.
 		by (intro Hc; rewrite <- Hcn, <- Hcm in Hc; inversion Hc as [Hc1];
 			apply (gtb_decomp_eq x n m) in Hc1; [contradiction|assumption..]).
 	rewrite <- Hcn, <- Hcm in Hc.
-	apply is_canonical_equiv in Hn, Hm.
 	pose proof (Hdn := gtb_decomp_is_decomp x n decompn Hn Hcn).
 	pose proof (Hdm := gtb_decomp_is_decomp x m decompm Hm Hcm).
 	destruct decompn as [tn dn an], decompm as [tm dm am],
