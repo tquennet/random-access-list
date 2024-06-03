@@ -22,7 +22,7 @@ Context {A : Type}.
 
 Definition cons_inc_strip := @RAL.cons_inc_strip A.
 
-(*Theorem trim_strip : forall (l : @RAL.t A), RAL.strip (RAL.trim l) = BinNat.trim (RAL.strip l).
+Theorem trim_strip : forall (l : @RAL.t A), RAL.strip (RAL.trim l) = BinNat.trim (RAL.strip l).
 Proof.
 	intro l.
 	{	induction l, (@RAL.trim A l) using RAL.trim_ind; simpl in *.
@@ -34,7 +34,7 @@ Proof.
 	+	rewrite IHl0.
 		reflexivity.
 	}
-Qed.*)
+Qed.
 
 Definition open_forget :=
 	option_map (fun zip : (@RAL.zipper A) => BinNat.mkZip (RAL.strip zip.(RAL.zip_tl))

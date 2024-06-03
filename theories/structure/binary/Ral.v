@@ -311,118 +311,7 @@ Proof.
 	assumption.
 Qed.
 
-(*Lemma is_canonical_aux_to_struct : forall n l, is_canonical_aux n l -> is_canonical_struct n l.
-Proof.
-	intros n l H.
-	{	induction H as [| l t Hl HR Ht].
-	+	split; [apply valid_Nil| reflexivity].
-	+	destruct HR as [Hvl Hs].
-		split; [apply cons_aux_valid; assumption|].
-		enough (forall b, BinNat.is_canonical_struct_fix b (strip (cons_aux t l)) = true);
-			[apply H|].
-		clear Hl Ht Hvl.
-		{	functional induction (cons_aux t l); intro b; simpl in *.
-		+	reflexivity.
-		+	apply BinNat.is_canonical_struct_false.
-			assumption.
-		+	apply IHt0.
-			assumption.
-		}
-	}
-Qed.
-
-
-Lemma is_canonical_aux_equiv : forall l,
-	  is_canonical l <-> is_canonical_aux 0 l.
-Proof.
-	intro l.
-	{	split; intro H; induction H.
-	+	apply canonical_aux_Empty.
-	+	apply canonical_aux_Cons; [assumption| apply CLBT.singleton_valid].
-	+	apply canonical_Empty.
-	+	inversion_clear H0.
-		apply canonical_Cons; assumption.
-	}
-Qed.
-
-Lemma is_canonical_aux_One : forall n t, CLBT.is_valid n t -> is_canonical_aux n [One t].
-Proof.
-	intros n t H.
-	apply (canonical_aux_Cons n []); [apply canonical_aux_Empty| assumption].
-Qed.
-
-Lemma is_canonical_aux_double : forall n l b,
-		is_canonical_aux (S n) (b :: l) -> is_canonical_aux n (Zero :: b :: l).
-Proof.
-	intros n l b H.
-	assert (b :: l <> []) by discriminate.
-	{	induction H as [| r t Hr HR Ht].
-	+	contradiction.
-	+	inversion_clear Ht.
-		apply (canonical_aux_Cons n (One l0 :: r)); [|assumption].
-		{	destruct r as [|bl tl].
-		+	apply (canonical_aux_Cons n []); [|assumption].
-			apply canonical_aux_Empty.
-		+	apply (canonical_aux_Cons n (Zero :: bl :: tl)); [|assumption].
-			apply HR.
-			discriminate.
-		}
-	}
-Qed.
-
-Lemma is_canonical_struct_equiv_aux : forall n (l : t),
-	is_canonical_aux n l <-> is_canonical_struct n l.
-Proof.
-	intros n l.
-	{	split; intro H.
-	+	apply is_canonical_aux_to_struct.
-		assumption.
-	+	generalize dependent n.
-		{	induction l as [|b tl HR]; [|destruct b]; intros n H; destruct H as [Hv Hs].
-		+	apply canonical_aux_Empty.
-		+	destruct tl; [discriminate|].
-			inversion_clear Hv.
-			apply is_canonical_aux_double, HR.
-			destruct b; split; assumption.
-		+	inversion_clear Hv.
-			inversion_clear H.
-			destruct tl; [apply is_canonical_aux_One; assumption|].
-			apply (canonical_aux_Cons n (Zero :: b :: tl)); [|assumption].
-			apply is_canonical_aux_double, HR.
-			split; assumption.
-		}
-	}
-Qed.
-
-Lemma is_canonical_struct_equiv : forall (l : t),
-	  is_canonical l <-> is_canonical_struct 0 l.
-Proof.
-	intro l.
-	{	split; intro H.
-	+	apply is_canonical_struct_equiv_aux, is_canonical_aux_equiv.
-		assumption.
-	+	apply is_canonical_aux_equiv, is_canonical_struct_equiv_aux.
-		assumption.
-	}
-Qed.
-
-Lemma canonical_valid : forall l, is_canonical l -> is_valid l.
-Proof.
-	intros l H.
-	apply is_canonical_struct_equiv in H.
-	destruct H as [H _].
-	assumption.
-Qed.
-
-Theorem strip_canonical : forall l, is_canonical l -> is_precanonical l.
-Proof.
-	intros l H.
-	apply is_canonical_struct_equiv in H.
-	destruct H as [_ H].
-	assumption.
-Qed.*)
-
-(*Fixpoint trim l :=
+Fixpoint trim l :=
 	match l with
 	| [] => []
 	| One clbt :: tl => One clbt :: (trim tl)
@@ -434,9 +323,10 @@ Qed.*)
 
 Functional Scheme trim_ind := Induction for trim Sort Prop.
 
-Lemma trim_precanonical : forall l, is_precanonical (trim l).
+Lemma trim_canonical : forall l, is_canonical (trim l).
 Proof.
 	intro l.
+	apply BinNat.is_canonical_equiv.
 	{	functional induction (trim l); simpl in *.
 	+	reflexivity.
 	+	reflexivity.
@@ -445,43 +335,31 @@ Proof.
 	+	assumption.
 	}
 Qed.
-Lemma trim_canonical : forall l, is_valid l -> is_canonical (trim l).
-Proof.
-	intros l H.
-	apply is_canonical_struct_equiv.
-	enough (He : forall n, valid n l -> is_canonical_struct n (trim l));
-		[apply He; assumption|].
-	clear H.
-	{	functional induction (trim l); intros n H.
-	+	split; [apply valid_Nil| reflexivity].
-	+	split; [apply valid_Nil| reflexivity].
-	+	inversion_clear H.
-		apply IHl0 in H1.
-		rewrite e1 in H1.
-		destruct H1 as [Hv Hs].
-		split; [apply valid_zero; assumption|destruct y0; assumption].
-	+	inversion_clear H.
-		inversion_clear H0.
-		apply IHl0 in H1.
-		destruct H1 as [Hv Hs].
-		split; [apply valid_one|]; assumption.
-	}
-Qed.
+
 Lemma trim_valid : forall l, is_valid l -> is_valid (trim l).
 Proof.
 	intros l H.
-	apply trim_canonical in H.
-	apply is_canonical_struct_equiv in H.
-	destruct H.
-	assumption.
+	enough (He : forall n, valid n l -> valid n (trim l)) by (apply He; assumption).
+	clear H.
+	{	induction l as [|bl tl HR]; intros n Hl.
+	+	apply valid_Nil.
+	+	inversion_clear Hl.
+		{	destruct bl; simpl; destruct trim.
+		+	apply valid_Nil.
+		+	apply valid_Cons, HR; assumption.
+		+	apply valid_Cons, valid_Nil; assumption.
+		+	apply valid_Cons, HR; assumption.
+		}
+	}
 Qed.
 
 Lemma trim_strip_canonical_id : forall l,
-		is_precanonical l -> trim l = l.
+		is_canonical l -> trim l = l.
 Proof.
-	intros l.
-	{	induction l as [|bl tl HR]; intro H;
-			[|destruct bl; apply BinNat.is_canonical_struct_tl in H as Htl];
+	intros l Hl.
+	apply BinNat.is_canonical_equiv in Hl.
+	{	induction l as [|bl tl HR];
+			[|destruct bl; apply BinNat.is_canonical_struct_tl in Hl as Htl];
 			simpl.
 	+	reflexivity.
 	+	rewrite HR; [|assumption].
@@ -490,14 +368,6 @@ Proof.
 	+	rewrite HR; [|assumption].
 		reflexivity.
 	}
-Qed.
-Lemma trim_canonical_id : forall l, is_canonical l -> trim l = l.
-Proof.
-	intros l H.
-	apply is_canonical_struct_equiv in H.
-	destruct H as [_ H].
-	apply trim_strip_canonical_id.
-	assumption.
 Qed.
 
 Local Lemma trim_cons_aux : forall l a, trim (cons_aux a l) = cons_aux a (trim l).
@@ -518,37 +388,7 @@ Proof.
 	intros l a.
 	apply trim_cons_aux.
 Qed.
-Lemma trim_last_zero : forall l, trim (l ++ [Zero]) = trim l.
-Proof.
-	intros l.
-	{	induction l as [|bl tl HR]; [|destruct bl]; simpl.
-	+	reflexivity.
-	+	rewrite HR; reflexivity.
-	+	rewrite HR; reflexivity.
-	}
-Qed.
-Lemma trim_cons_zero : forall l n,
-	l <> [] -> is_canonical_struct n l ->
-	trim (Zero :: l) = Zero :: l.
-Proof.
-	intros l He H.
-	revert He H.
-	{	induction l as [|bl tl HR]; [|destruct bl]; intros n He H.
-	+	contradiction.
-	+	apply proj2 in H as Hs.
-		assert (Htl : tl <> []) by (destruct tl; discriminate).
-		apply is_canonical_struct_tl in H; fold strip in H.
-		specialize (HR _ Htl H).
-		simpl in *.
-		rewrite HR.
-		reflexivity.
-	+	simpl.
-		destruct H as [_ H].
-		rewrite trim_strip_canonical_id; [|assumption].
-		reflexivity.
-	}
-Qed.
-*)
+
 End canonical.
 
 
@@ -566,23 +406,6 @@ Fixpoint uncons (l : t) : option (CLBT * t) :=
 		end
 	end.
 Functional Scheme uncons_ind := Induction for uncons Sort Prop.
-
-(*Definition uncons_map_trim : option (CLBT * t) -> option (CLBT * t) :=
-	option_map (fun '(clbt, r) => (clbt, trim r)).
-Lemma trim_uncons : forall l, uncons_map_trim (uncons l) = uncons (trim l).
-Proof.
-	intro l.
-	{	induction l as [|bl tl HR]; [|destruct bl]; simpl in *.
-	+	reflexivity.
-	+	destruct (trim tl), (uncons tl) as [p|];
-			[discriminate|reflexivity|destruct p as [tt tr]|];
-			simpl in *; rewrite <- HR; reflexivity.
-	+	destruct tl; [reflexivity|].
-		remember (b :: tl) as L.
-		simpl.
-		destruct trim; reflexivity.
-	}
-Qed.*)
 
 Lemma uncons_valid : forall l n t r,
 		valid n l ->
@@ -734,26 +557,7 @@ Proof.
 	intros l a.
 	apply head_cons_aux.
 Qed.
-(*Lemma head_trim : forall l, head (trim l) = head l.
-Proof.
-	intros l.
-	{	induction l as [|bl tl HR]; [|destruct bl]; simpl.
-	+	reflexivity.
-	+	destruct (trim tl);	assumption.
-	+	reflexivity.
-	}
-Qed.*)
 
-(*Lemma trim_tail : forall l, trim (tail l) = tail (trim l).
-Proof.
-	intro l.
-	unfold tail.
-	pose proof (trim_uncons l).
-	destruct uncons as [p0|], uncons as [p1|]; [|discriminate..|reflexivity].
-	destruct p0, p1; simpl in *.
-	inversion_clear H.
-	reflexivity.
-Qed.*)
 End uncons.
 
 Section well_formed.
