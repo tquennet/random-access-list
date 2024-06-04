@@ -1,39 +1,35 @@
 Require Import utils.Utils.
+Require Export stdpp.base.
 
-Reserved Notation "m >>= f" (at level 50, left associativity).
-Reserved Notation "↑ P" (at level 0, right associativity).
-
-Class Monad :=
+Class Monad (M : Type -> Type) :=
 {
-	m : Type -> Type;
-	ret : forall {A : Type}, A -> m A;
-	bind : forall {A B : Type}, (A -> m B) -> m A -> m B
-		where "m >>= f" := (bind f m);
-	left_comp : forall {A B : Type} (a : A) (f : A -> m B), ret a >>= f = f a;
-	right_comp : forall {A : Type} (x : m A), x >>= ret = x;
-	assoc : forall {A B C : Type} (x : m A) (f : A -> m B) (g : B -> m C),
-		x >>= f >>= g = x >>= (fun a => f a >>= g)
+	ret : MRet M;
+	bind : MBind M;
+	leftcomp : forall [A B : Type] (a : A) (f : A -> M B), ret A a ≫= f = f a;
+	rightcomp : forall [A : Type] (x : M A), x ≫= ret A = x;
+	assoc : forall [A B C : Type] (x : M A) (f : A -> M B) (g : B -> M C),
+		(x ≫= f) ≫= g = x ≫= (fun a => f a ≫= g);
 }.
 
-Notation "m >>= f" := (bind f m).
+Reserved Notation "P ◻" (at level 0, no associativity).
 
-Class FailMonad :=
+
+Class FailMonad (E : Type) (M : Type -> Type) :=
 {
-	monad :: Monad;
-	fail : forall {A : Type}, m A;
-	bind_fail : forall {A B : Type} (f : A -> m B), fail >>= f = fail;
-	lift : forall {A : Type}, (A -> Prop) -> (m A -> Prop) where "↑ P" := (lift P);
-	lift_fail : forall {A : Type} (P : A -> Prop), ↑P (fail);
-	lift_ret : forall {A : Type} (P : A -> Prop) (a : A), P a <-> ↑P (ret a);
-	lift_bind : forall {A B : Type} (P : B -> Prop) (f : A -> m B) (x : m A),
-		↑(fun y => ↑P (f y)) x -> ↑P (x >>= f)
+	monad :: Monad M;
+	throw : MThrow E M;
+	(*bindfail : forall {A B : Type} e (f : A -> M B), bind _ _ f (throw A e) = throw B e;*)
+	lift : forall {A : Type}, (A -> Prop) -> (M A -> Prop) where "P ◻" := (lift P);
+	liftthrow : forall [A : Type] e (P : A -> Prop), P◻ (throw A e);
+	liftret : forall [A : Type] (P : A -> Prop) (a : A), P a <-> P ◻ (ret A a);
+	liftbind : forall [A B : Type] (P : A -> Prop) (P' : B -> Prop) (f : A -> M B) (x : M A),
+		(forall a, P a -> P'◻ (f a)) -> P◻ x -> P'◻ (bind _ _ f x);
 }.
 
-Notation "↑ P" := (lift P).
+Notation "P ◻" := (lift P).
 
-#[refine] Instance OptionMonad : Monad :=
+#[refine] Instance OptionMonad : Monad option :=
 {
-	m := option;
 	ret := @Some;
 	bind := @option_join;
 }.
@@ -42,13 +38,13 @@ Notation "↑ P" := (lift P).
 +	destruct x; reflexivity.
 Defined.
 
-#[refine] Instance OptionFailMonad : FailMonad :=
+#[refine] Instance OptionFailMonad : FailMonad unit option :=
 {
 	monad := OptionMonad;
 	lift := @option_predicate;
-	fail := @None;
+	throw := fun A _ => @None A;
 }.
-+	reflexivity.
+(* +	reflexivity.*)
 +	intros A P.
 	apply OP_None.
 +	intros A P a.
@@ -58,6 +54,28 @@ Defined.
 	+	inversion_clear H.
 		assumption.
 	}
-+	intros A B P f x H.
-	destruct x; [inversion_clear H; assumption|apply OP_None].
++	intros A B P P' f x H Hx.
+	destruct x; [|apply OP_None].
+	apply H.
+	inversion_clear Hx.
+	assumption.
 Defined.
+
+
+Section FailMonadProps.
+
+Context {E : Type} {M : Type -> Type} (failmonad : FailMonad E M).
+			
+Definition success [A : Type] (x : M A) := exists a, x = ret _ a.
+
+Lemma liftimp : forall [A : Type] (P P' : A -> Prop) (H : forall a, P a -> P' a) (x : M A), P◻ x -> P'◻ x.
+Proof.
+	intros A P P' H x Hl.
+	rewrite <- rightcomp.
+	apply (liftbind P); [|assumption].
+	intros a Ha.
+	rewrite <- liftret.
+	apply H.
+	assumption.
+Qed.
+End FailMonadProps.

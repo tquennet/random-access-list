@@ -1,6 +1,6 @@
-Require Import Lists.List FunInd.
-Require Import Init.Nat.
-Require Import utils.Utils.
+Require Import Lists.List FunInd Init.Nat Arith.
+Require Import utils.Utils utils.FailMonad.
+
 Import ListNotations.
 
 Declare Scope bin_nat_scope.
@@ -42,6 +42,21 @@ Definition dt := t.
 
 Notation "0" := Zero.
 Notation "1" := One.
+
+Section BinNat.
+
+Variable (M : Type -> Type) (failMonad : FailMonad unit M).
+
+Local Instance bind : MBind M := failMonad.(monad).(bind).
+
+Let leftcomp := failMonad.(monad).(leftcomp).
+Let rightcomp := failMonad.(monad).(rightcomp).
+Let assoc := failMonad.(monad).(assoc).
+Let liftthrow := failMonad.(liftthrow).
+Let liftret := failMonad.(liftret).
+Let liftbind {A B : Type} {P : A -> Prop} {P' : B -> Prop} x Hb f H
+	:= failMonad.(liftbind) P P' f x H Hb.
+Definition success := success failMonad.
 
 Fixpoint to_nat n : nat :=
 	match n with
@@ -132,6 +147,12 @@ Fixpoint is_canonical_fix b n :=
 
 Definition is_canonical_struct n := is_canonical_fix true n = true.
 
+Lemma zero_non_positive : ~ is_positive [0].
+Proof.
+	intros H.
+	inversion_clear H.
+	inversion_clear H0.
+Qed.
 Lemma one_canonical : forall n, is_canonical n -> is_canonical (1 :: n).
 Proof.
 	intros n Hn.
@@ -147,7 +168,16 @@ Proof.
 	intros n H.
 	destruct H; discriminate.
 Qed.
-
+Lemma is_positive_to_nat : forall n, is_positive n -> to_nat n <> O.
+Proof.
+	intros n Hn H.
+	{	induction Hn as [|bn tn Hn HR]; [|destruct bn]; simpl in *.
+	+	discriminate.
+	+	apply PeanoNat.Nat.eq_add_0, proj1, HR in H.
+		contradiction.
+	+	discriminate.
+	}
+Qed.
 Lemma is_canonical_equiv : forall n, is_canonical n <-> is_canonical_struct n.
 Proof.
 	intro n.
@@ -408,16 +438,14 @@ Proof.
 	}
 Qed.
 
-Fixpoint dec_aux n :=
+Fixpoint dec n : M t :=
 	match n with
-	| [] => None
-	| 1 :: t => Some (safe_zero t)
-	| 0 :: t => option_map (fun r => 1 :: r) (dec_aux t)
+	| [] => throw _ () 
+	| 1 :: t => ret _ (safe_zero t)
+	| 0 :: t => r ← (dec t); ret _ (1 :: r)
 	end.
 
-Functional Scheme dec_aux_ind := Induction for dec_aux Sort Prop.
-
-Definition dec n := def_zero (dec_aux n).
+Functional Scheme dec_ind := Induction for dec Sort Prop.
 
 Fixpoint dt_dec dn :=
 	match dn with
@@ -462,97 +490,70 @@ Proof.
 Qed.
 
 Lemma dec_inc : forall (n : t),
-	is_canonical n -> dec (inc n) = n.
+	is_canonical n -> dec (inc n) = ret _ n.
 Proof.
 	intros n Hn.
-	unfold dec.
-	enough (forall n, is_canonical n -> dec_aux (inc n) = Some n);
-		[apply H in Hn; rewrite Hn; reflexivity|].
-	clear n Hn.
-	intros n Hn.
-	apply is_canonical_equiv in Hn.
-	{	functional induction (inc n).
+	destruct Hn as [|n Hn]; [reflexivity|].
+	{	induction n as [|bn tn HR]; [|destruct bn]; simpl.
 	+	reflexivity.
-	+	destruct t0; [discriminate|].
+	+	destruct tn; [apply zero_non_positive in Hn; contradiction|].
 		reflexivity.
-	+	simpl.
-		destruct t0; [reflexivity|].
-		apply IHl in Hn.
-		rewrite Hn.
+	+	inversion_clear Hn; simpl; [rewrite leftcomp; reflexivity|].
+		rewrite HR, leftcomp; [|assumption].
 		reflexivity.
 	}
 Qed.
 
-Lemma dec_aux_None : forall n, dec_aux n = None <-> to_nat n = O.
+Lemma dec_positive : forall n, is_positive n -> success _ (dec n).
 Proof.
-	intro n.
-	{	split; intro H; functional induction (dec_aux n); simpl in *.
-	+	reflexivity.
-	+	destruct (dec_aux t0); [discriminate|].
-		rewrite IHo; reflexivity.
-	+	discriminate.
-	+	reflexivity.
-	+	apply PeanoNat.Nat.eq_add_0 in H; destruct H as [H _].
-		rewrite H in IHo.
-		rewrite IHo; reflexivity.
-	+	discriminate.
+	intros n Hn.
+	{	induction Hn as [|bn tn Hn HR]; [|destruct bn]; simpl in *.
+	+	exists [].
+		reflexivity.
+	+	destruct HR as [r HR].
+		rewrite HR, leftcomp.
+		exists (1 :: r).
+		reflexivity.
+	+	exists (safe_zero tn).
+		reflexivity.
 	}
 Qed.
 
-Theorem dec_pred : forall n,
-	to_nat (dec n) = pred (to_nat n).
+Theorem dec_pred : forall n, is_canonical n -> (fun m => to_nat m = pred (to_nat n))◻ (dec n).
 Proof.
-	intros n.
-	unfold dec.
-	{	functional induction (dec_aux n); simpl in *.
-	+	reflexivity.
-	+	{	apply option_default_map_inv.
-		+	intro eq.
-			apply dec_aux_None in eq.
-			rewrite eq.
-			reflexivity.
-		+	intros n eq.
-			rewrite eq in IHo.
-			simpl in *.
-			assert (to_nat t0 <> O)
-				by (intro H; apply dec_aux_None in H; rewrite H in eq; discriminate).
-			rewrite IHo, <- !plus_n_O, <- plus_Sn_m, <- PeanoNat.Nat.add_1_l.
-			rewrite !PeanoNat.Nat.add_pred_r; [|assumption|assumption].
-			rewrite PeanoNat.Nat.add_1_l.
-			reflexivity.
-		}
-	+	apply safe_zero_double.
-	}
-Qed.
-
-Lemma uncons_canonical : forall n r,
-		is_canonical n -> dec_aux n = Some r -> is_canonical r.
-Proof.
-	intros n r Hn Hr.
-	apply is_canonical_equiv in Hn.
-	apply is_canonical_equiv.
-	revert r Hn Hr.
-	{	induction n as [|bn tn HR]; [|destruct bn]; intros r Hn Hr; simpl in Hr |- * .
-	+	inversion_clear Hr.
-	+	destruct dec_aux; [|discriminate].
-		specialize (HR l (is_canonical_struct_tl _ _ Hn) eq_refl).
-		inversion_clear Hr.
-		assumption.
-	+	destruct tn; inversion_clear Hr; [reflexivity|].
-		destruct b; assumption.
+	intros n Hn.
+	destruct Hn as [|n Hn]; simpl; [apply liftthrow|].
+	{	induction Hn as [|bn tn Hn HR]; [|destruct bn]; simpl in *.
+	+	rewrite <- liftret.
+		reflexivity.
+	+	apply is_positive_to_nat in Hn.
+		apply (liftbind _ HR).
+		intros a Ha.
+		rewrite <- liftret; simpl.
+		rewrite Ha, <- !plus_n_O, Nat.add_pred_r, Nat.add_pred_l; [|assumption..].
+		rewrite Nat.succ_pred; [reflexivity|].
+		destruct (to_nat tn); [contradiction|rewrite <- plus_n_Sm; discriminate].
+	+	rewrite <- liftret.
+		apply safe_zero_double.
 	}
 Qed.
 
 Lemma dec_canonical : forall (n : t),
-	is_positive n -> is_canonical (dec n).
+	is_canonical n -> is_canonical◻ (dec n).
 Proof.
 	intros n Hn.
-	apply canonical_pos in Hn.
-	unfold dec.
-	pose proof (H := uncons_canonical n).
-	{	destruct (dec_aux n).
-	+	exact (H l Hn eq_refl).
-	+	apply canonical_0.
+	destruct Hn as [|n Hn]; [apply liftthrow|].
+	{	induction Hn as [|bn tn Hn HR]; [|destruct bn]; simpl in *.
+	+	rewrite <- liftret.
+		apply canonical_0.
+	+	apply (liftbind _ HR).
+		intros a Ha.
+		rewrite <- liftret.
+		apply canonical_pos.
+		destruct Ha; [apply positive_top|apply positive_cons]; assumption.
+	+	rewrite <- liftret.
+		apply safe_zero_canonical, canonical_pos.
+		assumption.
 	}
 Qed.
 
@@ -980,6 +981,8 @@ Proof.
 		contradiction.
 	}
 Qed.
+
+End BinNat.
 
 Module Notations.
 
