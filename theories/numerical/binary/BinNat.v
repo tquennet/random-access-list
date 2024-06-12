@@ -8,31 +8,37 @@ Open Scope nat_scope.
 Open Scope bin_nat_scope.
 
 (********************************************************************************)
-(*	Notations are defined in bin_nat_scope.										*)
-(*	t == the type of binary numbers (lsb first).								*)
-(*	dt == the type of binary numbers (msb first).								*)
-(*	is_canonical == a predicate identifying canonical BinNat					*)
-(*		zero  == a binary number representing 0									*)
-(*			+: canonical_0 : is_canonical zero									*)
-(*		inc n == the successor of n												*)
-(*			+: canonical_inc n : is_canonical n -> is_canonical (inc n)			*)
-(*																				*)
-(*	**	Unary operator:															*)
-(*			 to_nat n == n as native coq nat									*)
-(*				dec n == the predecessor of n									*)
-(*			   trim n == the canonical version of n								*)
-(*	**	Binary operators:														*)
-(*		 sub n m, n - m == the difference between n and m						*)
-(*	** Lemmes:																	*)
-(*		trim_canonical : forall n, is_canonical (trim n)						*)
-(*		dec_canonical : forall n, is_canonical n -> is_canonical (dec n)		*)
-(*		sub_canonical : forall n m, is_canonical (n - m)						*)
-(*																				*)
-(*		trim_to_nat : forall n, to_nat n = to_nat (trim n)						*)
-(*		inc_S : forall n, to_nat (inc n) = S (to_nat n)							*)
-(*		dec_pred : forall n, to_nat (dec n) = pred (to_nat n)					*)
-(*		sub_minus : forall n m, to_nat (n - m) = (to_nat n - to_nat m)%nat		*)
-(********************************************************************************)
+(** * Binary numbers
+
+Notations are defined in [bin_nat_scope].
+
+** Predicates:
+
+- [is_canonical n] <=> there is no trailing zeros
+
+All the constructors in the file produce canonical binary numbers and
+operations preserve canonicity.
+
+** Constructors:
+
+- [t] == the type of binary numbers, with lowest-significant-bit first
+- [dt] == the type of binary numbers with most-significant-bit first,
+  understood as the one-hole context of the type [t].
+- [zero] == binary number representing 0
+
+** Operations:
+
+- [inc n] == the successor of [n] [dec n] == the predecessor of [n]
+- [gtb n m], [n >? m] <=> [n] is (strictly) greater than [m]
+- [sub n m], [n - m] == the difference between [n] and [m]
+
+** Conversions:
+
+- [to_nat n] == convert [n] to Coq Peano natural number
+- [normalize bs] == turn any element of [t] into an equivalent,
+  canonical binary number
+
+*)
 
 Reserved Notation "n >? m" (at level 70).
 
@@ -87,7 +93,7 @@ Proof.
 			[|discriminate..|]; simpl in *.
 	+	reflexivity.
 	+	inversion H.
-		destruct bn, bm; [|discriminate..|]; f_equal; apply HR; assumption.		
+		destruct bn, bm; [|discriminate..|]; f_equal; apply HR; assumption.
 	}
 Qed.
 
