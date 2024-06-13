@@ -2,6 +2,8 @@
 
 theories/utils/Utils.v
 
+theories/numerical/Num.v
+
 theories/numerical/unary/Nat.v
 theories/structure/unary/List.v
 theories/equiv/unary/Nat_List.v
