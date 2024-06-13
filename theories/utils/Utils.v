@@ -11,8 +11,11 @@ Record Monoid (S : Type) : Type :=
 Definition Monoid_nat : Monoid nat :=
   {| monoid_plus := Init.Nat.add ; monoid_unit := 0%nat |}.
 
-Definition Monoid_endo {A} : Monoid (A -> A) :=
+Definition Monoid_endol {A} : Monoid (A -> A) :=
   {| monoid_plus := fun f g a => f (g a);
+     monoid_unit := fun a => a |}.
+Definition Monoid_endor {A} : Monoid (A -> A) :=
+  {| monoid_plus := fun f g a => g (f a);
      monoid_unit := fun a => a |}.
 
 Definition Monoid_Prop : Monoid Prop :=
