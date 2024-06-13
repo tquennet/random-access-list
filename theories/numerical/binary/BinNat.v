@@ -3,6 +3,8 @@ Require Import Init.Nat.
 Require Import utils.Utils.
 Import ListNotations.
 
+Require Import numerical.Num.
+
 Declare Scope bin_nat_scope.
 Open Scope nat_scope.
 Open Scope bin_nat_scope.
@@ -39,27 +41,122 @@ operations preserve canonicity.
   canonical binary number
 
 *)
+(********************************************************************************)
 
 Reserved Notation "n >? m" (at level 70).
 
 Variant Bit := Zero | One.
-Definition t := list Bit.
-Definition dt := t.
+Definition t := Num Bit.
+Definition dt := list Bit.
 
 Notation "0" := Zero.
 Notation "1" := One.
 
-Fixpoint to_nat n : nat :=
+(** Canonicity *)
+
+Inductive is_positive : t -> Prop :=
+  | is_positive_Ob1 : is_positive (snoc Ob 1)
+  | is_positive_snoc1 : forall n, is_positive n -> is_positive (snoc n 1)
+  | is_positive_snoc0 : forall n, is_positive n -> is_positive (snoc n 0).
+
+Inductive is_canonical : t -> Prop :=
+  | is_pos : forall n, is_positive n -> is_canonical n
+  | is_Ob : is_canonical Ob.
+
+Fixpoint is_canonicalb_aux b n :=
 	match n with
-	| [] => O
-	| 0 :: t => 2 * (to_nat t)
-	| 1 :: t => S (2 * to_nat t)
+	| Ob => b
+	| snoc tn 0 => is_canonicalb_aux false tn
+	| snoc tn 1 => is_canonicalb_aux true tn
 	end.
 
-Lemma to_nat_app : forall n m, to_nat (n ++ m) = (to_nat n + to_nat m * 2 ^ length n).
+Definition is_canonicalb n := is_canonicalb_aux true n.
+
+Theorem decide_is_canonicalb: forall n, is_canonicalb n = true <-> is_canonical n.
+Admitted.
+
+(*
+Lemma is_canonicalb_aux_false : forall n,
+	is_canonicalb_aux false n = true -> is_canonicalb n = true.
+Proof.
+	intros n H.
+	destruct n; [inversion_clear H|].
+	assumption.
+Qed.
+
+Lemma is_canonicalb_snoc : forall b0 b1 n,
+	is_canonicalb (snoc n b1) = true -> is_canonicalb (snoc (snoc n b1) b0) = true.
+Proof.
+	intros b0 b1 n H.
+	destruct b0; assumption.
+Qed.
+
+Lemma is_canonical_struct_tl : forall b n, is_canonical_struct (snoc n b) -> is_canonical_struct n.
+Admitted.
+(*
+Proof.
+	intros b n H.
+	{	destruct n.
+	+	reflexivity.
+	+	destruct b; destruct b0; assumption.
+	}
+Qed.
+*)
+*)
+
+
+(* XXX: delete?
+Definition not b :=
+	match b with
+	| 0 => 1
+	| 1 => 0
+	end.
+
+Definition complement := mapi (fun _ => not).
+Lemma complement_length : forall n,
+		length (complement n) = length n.
+Proof.
+	intros n.
+	apply mapi_length.
+Qed.
+Lemma complement_inj : forall n m,
+		complement n = complement m -> n = m.
+Admitted.
+(*
+Proof.
+	intro n.
+	{	induction n as [|bn tn HR]; intros m H; destruct m as [|bm tm];
+			[|discriminate..|]; simpl in *.
+	+	reflexivity.
+	+	inversion H.
+		destruct bn, bm; [|discriminate..|]; f_equal; apply HR; assumption.
+	}
+Qed.*)
+*)
+
+(** [to_nat] *)
+
+Fixpoint to_nat_rec n : nat :=
+	match n with
+	| Ob => O
+	| snoc t 0 => 2 * (to_nat_rec t)
+	| snoc t 1 => S (2 * to_nat_rec t)
+	end.
+
+Definition bit_to_nat (k: nat)(b: Bit): nat :=
+  match b with
+  | 0 => 0%nat
+  | 1 => 2 ^ k
+  end.
+
+Definition to_nat := foldMap Monoid_nat bit_to_nat.
+
+Lemma to_nat_app : forall n m, to_nat (app m n) = (to_nat n + to_nat m * 2 ^ length n).
+Admitted.
+(*
 Proof.
 	intros n m.
-	{	induction n as [|bn tn HR]; [|destruct bn]; simpl.
+	{	induction n as [|bn  HR]; [|destruct bn]; simpl.
 	+	rewrite PeanoNat.Nat.mul_1_r.
 		reflexivity.
 	+	rewrite HR, <- !plus_n_O, PeanoNat.Nat.mul_add_distr_l.
@@ -70,72 +167,14 @@ Proof.
 		rewrite PeanoNat.Nat.add_shuffle0, !PeanoNat.Nat.add_assoc.
 		reflexivity.
 	}
-Qed.
+Qed. *)
 
-Definition not b :=
-	match b with
-	| 0 => 1
-	| 1 => 0
-	end.
-
-Definition complement := map not.
-Lemma complement_length : forall n,
-		length (complement n) = length n.
-Proof.
-	intros n.
-	apply map_length.
-Qed.
-Lemma complement_inj : forall n m,
-		complement n = complement m -> n = m.
-Proof.
-	intro n.
-	{	induction n as [|bn tn HR]; intros m H; destruct m as [|bm tm];
-			[|discriminate..|]; simpl in *.
-	+	reflexivity.
-	+	inversion H.
-		destruct bn, bm; [|discriminate..|]; f_equal; apply HR; assumption.
-	}
-Qed.
-
-Definition zero : t := [].
-Notation def_zero := (option_default zero).
-
-Fixpoint inc n :=
-	match n with
-	| [] => [1]
-	| 0 :: t => 1 :: t
-	| 1 :: t => 0 :: inc t
-	end.
-
-Functional Scheme inc_ind := Induction for inc Sort Prop.
-
-Theorem inc_S : forall n, to_nat (inc n) = S (to_nat n).
-Proof.
-	intro n.
-	{	functional induction (inc n); simpl.
-	+	reflexivity.
-	+	reflexivity.
-	+	rewrite IHl.
-		rewrite <- !plus_n_O, plus_Sn_m, <- plus_n_Sm.
-		reflexivity.
-	}
-Qed.
-
-Inductive is_canonical : t -> Prop :=
-	| canonical_0 : is_canonical []
-	| canonical_inc : forall (n : t),
-		is_canonical n -> is_canonical (inc n).
-
-Local Lemma canonical_1 : is_canonical [1].
-Proof.
-	replace [1] with (inc []) by reflexivity.
-	apply canonical_inc, canonical_0.
-Qed.
-
-Lemma canonical_unicity : forall n m,
+Lemma to_nat_inj : forall n m,
 	is_canonical n -> is_canonical m ->
 	to_nat n = to_nat m ->
 	n = m.
+Admitted.
+(*
 Proof.
 	intros n m Hn.
 	generalize dependent m.
@@ -152,52 +191,61 @@ Proof.
 		assumption.
 	}
 Qed.
+*)
 
-Fixpoint is_canonical_struct_fix b n :=
+(** Zero *)
+
+Definition zero : t := Ob.
+
+Theorem is_canonical_zero: is_canonical zero.
+Proof. apply is_Ob. Qed.
+
+(** Inc *)
+
+Fixpoint inc n :=
 	match n with
-	| [] => b
-	| 0 :: tn => is_canonical_struct_fix false tn
-	| 1 :: tn => is_canonical_struct_fix true tn
+	| Ob => snoc Ob 1
+	| snoc t 0 => snoc t 1
+	| snoc t 1 => snoc (inc t) 0
 	end.
 
-Definition is_canonical_struct n := is_canonical_struct_fix true n = true.
+Functional Scheme inc_ind := Induction for inc Sort Prop.
 
-Lemma is_canonical_struct_false : forall n,
-	is_canonical_struct_fix false n = true -> is_canonical_struct n.
-Proof.
-	intros n H.
-	destruct n; [inversion_clear H|].
-	assumption.
-Qed.
+Theorem is_canonical_inc: forall n, is_canonical n -> is_canonical (inc n).
+Admitted.
 
-Lemma is_canonical_struct_cons : forall b0 b1 n,
-	is_canonical_struct (b1 :: n) -> is_canonical_struct (b0 :: b1 :: n).
+Theorem inc_S : forall n, to_nat (inc n) = S (to_nat n).
+Admitted.
+(*
 Proof.
-	intros b0 b1 n H.
-	destruct b0; assumption.
-Qed.
-
-Lemma is_canonical_struct_tl : forall b n, is_canonical_struct (b :: n) -> is_canonical_struct n.
-Proof.
-	intros b n H.
-	{	destruct n.
+	intro n.
+	{	functional induction (inc n); simpl.
 	+	reflexivity.
-	+	destruct b; destruct b0; assumption.
+	+	reflexivity.
+	+	rewrite IHl.
+		rewrite <- !plus_n_O, plus_Sn_m, <- plus_n_Sm.
+		reflexivity.
 	}
 Qed.
+*)
 
+
+(*
 Lemma inc_decomp : forall (n : t),
-	exists b tn, b :: tn = inc n.
+	exists b tn, snoc tn b = inc n.
+Admitted.
+(*
 Proof.
 	intros n.
 	{	destruct n as [|b tn]; [|destruct b].
-	+	exists 1, []; reflexivity.
+	+	exists 1, Ob; reflexivity.
 	+	exists 1, tn; reflexivity.
 	+	exists 0, (inc tn); reflexivity.
 	}
 Qed.
+*)
 
-Lemma inc_non_empty : forall n, inc n <> [].
+Lemma inc_non_empty : forall n, inc n <> Ob.
 Proof.
 	intro n.
 	pose (H := inc_decomp n).
@@ -205,10 +253,14 @@ Proof.
 	rewrite <- H.
 	discriminate.
 Qed.
+*)
 
+(*
 Lemma is_canonical_inc_struct : forall (n : t),
 	is_canonical_struct n ->
 	is_canonical_struct (inc n).
+Admitted.
+(*
 Proof.
 	intros n H.
 	{	functional induction (inc n).
@@ -223,9 +275,12 @@ Proof.
 		assumption.
 	}
 Qed.
+*)
+*)
 
+(*
 Lemma canonical_double : forall (n : t),
-	is_canonical n -> is_canonical (0 :: (inc n)).
+	is_canonical n -> is_canonical (snoc (inc n) 0).
 Proof.
 	intros n H.
 	{	induction H.
@@ -265,10 +320,13 @@ Proof.
 		}
 	}
 Qed.
+*)
 
-
+(*
 Lemma is_canonical_struct_app_fix : forall l r b,
-		r <> [] -> is_canonical_struct_fix b (l ++ r) = is_canonical_struct_fix false r.
+		r <> Ob -> is_canonical_struct_fix b (app l r) = is_canonical_struct_fix false r.
+Admitted.
+(*
 Proof.
 	intros l r b Hr.
 	revert b.
@@ -277,9 +335,10 @@ Proof.
 	+	destruct bl; apply HR.
 	}
 Qed.
+*)
 
 Lemma is_canonical_struct_app : forall l r,
-		r <> [] -> is_canonical_struct (l ++ r) <-> is_canonical_struct r.
+		r <> Ob -> is_canonical_struct (app l r) <-> is_canonical_struct r.
 Proof.
 	intros l r Hr.
 	{	split; unfold is_canonical_struct; intro H.
@@ -291,6 +350,7 @@ Proof.
 	}
 Qed.
 
+(*
 Lemma canonical_ones : forall n, is_canonical (repeat 1 n).
 Proof.
 	intros n.
@@ -300,19 +360,25 @@ Proof.
 	+	assumption.
 	}
 Qed.
+*)
+*)
 
-Fixpoint trim n :=
-	match n with
-	| [] => []
-	| 1 :: tl => 1 :: (trim tl)
-	| 0 :: tl => match (trim tl) with
-		| [] => []
-		| r => 0 :: r
-		end
-	end.
+(** normalize *)
 
-Functional Scheme trim_ind := Induction for trim Sort Prop.
+Definition ssnoc n b :=
+  match n, b with
+  | Ob, 0 => Ob
+  | _, _ => snoc n b
+  end.
 
+Definition normalize n := foldi (fun _ => ssnoc) Ob n.
+
+(* Functional Scheme trim_ind := Induction for trim Sort Prop. *)
+
+Theorem is_canonical_normalize : forall n, is_canonical (normalize n).
+Admitted.
+
+(*
 Lemma trim_canonical : forall n, is_canonical (trim n).
 Proof.
 	intro n.
@@ -341,8 +407,10 @@ Proof.
 		reflexivity.
 	}
 Qed.
-
-Lemma trim_nat : forall l, to_nat (trim l) = to_nat l.
+*)
+Lemma to_nat_normalize : forall l, to_nat (normalize l) = to_nat l.
+Admitted.
+(*
 Proof.
 	intro l.
 	{	functional induction (trim l); simpl.
@@ -355,19 +423,21 @@ Proof.
 		reflexivity.
 	}
 Qed.
+*)
 
-Fixpoint dec_aux n :=
+(** [dec] *)
+
+Fixpoint dec n :=
 	match n with
-	| [] => None
-	| [1] => Some []
-	| 1 :: t => Some (0 :: t)
-	| 0 :: t => option_map (fun r => 1 :: r) (dec_aux t)
+	| Ob => None
+	| snoc Ob 1 => Some Ob
+	| snoc t 1 => Some (snoc t 0)
+	| snoc t 0 => option_map (fun r => snoc r 1) (dec t)
 	end.
 
-Functional Scheme dec_aux_ind := Induction for dec_aux Sort Prop.
+Functional Scheme dec_ind := Induction for dec Sort Prop.
 
-Definition dec n := def_zero (dec_aux n).
-
+(* XXX: REMOVE
 Fixpoint dt_dec dn :=
 	match dn with
 	| [] => (false, [])
@@ -408,10 +478,12 @@ Proof.
 		split; reflexivity.
 	+	destruct dt_dec as [b tdd], b; discriminate.
 	}
-Qed.
+Qed. *)
 
 Lemma inc_dec : forall (n : t),
-	is_canonical n -> dec (inc n) = n.
+	is_canonical n -> dec (inc n) = Some n.
+Admitted.
+(*
 Proof.
 	intros n Hn.
 	unfold dec.
@@ -431,13 +503,16 @@ Proof.
 		reflexivity.
 	}
 Qed.
+*)
 
-Local Lemma dec_aux_None : forall n, dec_aux n = None <-> to_nat n = O.
+Local Lemma dec_aux_None : forall n, dec n = None <-> to_nat n = O.
+Admitted.
+(*
 Proof.
 	intro n.
-	{	split; intro H; functional induction (dec_aux n); simpl in *.
+	{	split; intro H; functional induction (dec n); simpl in *.
 	+	reflexivity.
-	+	destruct (dec_aux t0); [discriminate|].
+	+	destruct (dec t0); [discriminate|].
 		rewrite IHo; reflexivity.
 	+	discriminate.
 	+	discriminate.
@@ -450,14 +525,22 @@ Proof.
 		rewrite plus_Sn_m in H.
 		discriminate.
 	}
-Qed.
+Qed. *)
+
+Definition option_lift {A} (P : A -> Prop)(a: option A): Prop :=
+  match a with
+  | None => True
+  | Some a => P a
+  end.
 
 Theorem dec_pred : forall n,
-	to_nat (dec n) = pred (to_nat n).
+	option_lift (fun r => to_nat r = pred (to_nat n)) (dec n).
+Admitted.
+(*
 Proof.
 	intros n.
 	unfold dec.
-	{	functional induction (dec_aux n); simpl in *.
+	{	functional induction (dec n); simpl in *.
 	+	reflexivity.
 	+	{	apply option_default_map_inv.
 		+	intro eq.
@@ -477,17 +560,22 @@ Proof.
 	+	reflexivity.
 	+	reflexivity.
 	}
-Qed.
+Qed. *)
 
 Lemma dec_canonical : forall (n : t),
-	is_canonical n -> is_canonical (dec n).
+	is_canonical n -> option_lift is_canonical (dec n).
+Admitted.
+(*
 Proof.
 	intros n Hn.
 	destruct Hn; [apply canonical_0|].
 	rewrite inc_dec; assumption.
 Qed.
+*)
 
-Notation rev_nat n := (to_nat (rev n)).
+(** [gt] *)
+
+Notation ctxt_to_nat n := (to_nat (plug Ob n)).
 
 Record decomp := mkZip
 {
@@ -498,36 +586,50 @@ Record decomp := mkZip
 
 Record is_decomp x y decomp :=
 {
-	dec_length : length decomp.(dec_diff) = length decomp.(dec_dn);
-	dec_zip : x = rev_append decomp.(dec_dn) (1 :: decomp.(dec_tn));
-	dec_val : S (rev_nat decomp.(dec_diff) + to_nat y) = rev_nat (1 :: decomp.(dec_dn));
+	dec_length : List.length decomp.(dec_diff) = List.length decomp.(dec_dn);
+	dec_zip : x = plug (snoc decomp.(dec_tn) 1) decomp.(dec_dn);
+	dec_val : S (ctxt_to_nat decomp.(dec_diff) + to_nat y) = ctxt_to_nat (1 :: decomp.(dec_dn));
 }.
 
-Definition gt_decomp := option decomp.
-
-Fixpoint gtb_decomp_aux (n : t) (m : t) (dn : dt) (an : dt) :=
+Fixpoint gt_aux (n : t) (m : t) (dn : dt) (an : dt) :=
 	match n, m with
-	| [], _ => None
-	| _, [] => None (* unreachable if m canonical *)
-	| 1 :: tn, [1] => Some (mkZip tn dn an)
-	| 0 as bit :: tn, 0 :: tm | 1 as bit :: tn, 1 :: tm
-		=> gtb_decomp_aux tn tm (bit :: dn) (0 :: an)
-	| 1 as bit :: tn, 0 :: tm => gtb_decomp_aux tn tm (bit :: dn) (1 :: an)
-	| 0 as bit :: tn, 1 :: tm => gtb_decomp_borrow tn tm (bit :: dn) (1 :: an)
+	| Ob, _ => None
+	| _, Ob => None (* unreachable if m canonical *)
+	| snoc tn 1, snoc Ob 1 => Some (mkZip tn dn an)
+	| snoc tn (0 as bit), snoc tm 0
+        | snoc tn (1 as bit), snoc tm 1
+		=> gt_aux tn tm (bit :: dn) (0 :: an)
+	| snoc tn (1 as bit), snoc tm 0 => gt_aux tn tm (bit :: dn) (1 :: an)
+	| snoc tn (0 as bit), snoc tm 1 => gt_borrow tn tm (bit :: dn) (1 :: an)
 	end
-with gtb_decomp_borrow (n : t) (m : t) (dn : dt) (an : dt) :=
+with gt_borrow (n : t) (m : t) (dn : dt) (an : dt) :=
 	match n, m with
-	| [], _ => None
-	| 0 as bit :: tn, [] => gtb_decomp_borrow tn [] (bit :: dn) (1 :: an)
-	| 1 :: tl, [] => Some (mkZip tl dn an)
-	| 0 as bit :: tn, 0 :: tm | 1 as bit :: tn, 1 :: tm
-		=> gtb_decomp_borrow tn tm (bit :: dn) (1 :: an)
-	| 0 as bit :: tn, 1 :: tm => gtb_decomp_borrow tn tm (bit :: dn) (0 :: an)
-	| 1 as bit :: tn, 0 :: tm => gtb_decomp_aux tn tm (bit :: dn) (0 :: an)
+	| Ob, _ => None
+	| snoc tn (0 as bit), Ob => gt_borrow tn Ob (bit :: dn) (1 :: an)
+	| snoc tl 1, Ob => Some (mkZip tl dn an)
+	| snoc tn (0 as bit), snoc tm 0 | snoc tn (1 as bit), snoc tm 1
+		=> gt_borrow tn tm (bit :: dn) (1 :: an)
+	| snoc tn (0 as bit), snoc tm 1 => gt_borrow tn tm (bit :: dn) (0 :: an)
+	| snoc tn (1 as bit), snoc tm 0 => gt_aux tn tm (bit :: dn) (0 :: an)
 	end.
 
-Definition gtb_decomp n m := gtb_decomp_borrow n m [] [].
+Definition gt n m := gt_borrow n m [] [].
 
+Definition gtb n m := 
+  match gt n m with
+  | None => false
+  | Some _ => true
+  end.
+
+Notation "n >? m" := (gtb n m) : bin_nat_scope.
+
+Definition sub n m :=
+  (* XXX: is that correct? *)
+  option_map (fun d => plug d.(dec_tn) d.(dec_diff)) (gt n m).
+
+Notation "n - m" := (sub n m) : bin_nat_scope.
+
+(* XXX: Delete
 Fixpoint gtb_cont b n m :=
 	match n, m with
 	| [], [] => b
@@ -539,21 +641,7 @@ Fixpoint gtb_cont b n m :=
 	end.
 
 Definition gtb := gtb_cont false.
-Notation "n >? m" := (gtb n m) : bin_nat_scope.
 
-Lemma gtb_cont_decomp_equiv_empty : forall n dn an,
-		is_canonical_struct n -> n <> [] ->
-		is_some (gtb_decomp_borrow n [] dn an) = true.
-Proof.
-	intro n.
-	{	induction n as [|bn tn HR]; [|destruct bn]; intros dn an Hn He; simpl.
-	+	contradiction.
-	+	assert (tn <> []) by (destruct tn; discriminate).
-		apply is_canonical_struct_tl in Hn.
-		apply HR; assumption.
-	+	reflexivity.
-	}
-Qed.
 Lemma gtb_cont_decomp_equiv : forall n m dn an,
 		is_canonical_struct n ->
 		is_canonical_struct m ->
@@ -595,6 +683,46 @@ Proof.
 	apply gtb_cont_decomp_equiv; assumption.
 Qed.
 
+Lemma gtb_cont_total : forall n m b,
+		gtb_cont b n m = true \/ gtb_cont (negb b) m n = true.
+Proof.
+	intro n.
+	{	induction n as [|bn tn HR]; [|destruct bn]; intros m b;
+			(destruct m as [|bm tm]; [|destruct bm]); simpl.
+	+	destruct b; [left|right]; reflexivity.
+	+	right; reflexivity.
+	+	right; reflexivity.
+	+	left; reflexivity.
+	+	apply HR.
+	+	apply HR.
+	+	left; reflexivity.
+	+	apply HR.
+	+	apply HR.
+	}
+Qed.
+*)
+
+(*
+Lemma gtb_cont_decomp_equiv_empty : forall n dn an,
+		is_canonical_struct n -> n <> Ob ->
+		is_some (gtb_decomp_borrow n Ob dn an) = true.
+Admitted.
+*)
+(*
+Proof.
+	intro n.
+	{	induction n as [|bn tn HR]; [|destruct bn]; intros dn an Hn He; simpl.
+	+	contradiction.
+	+	assert (tn <> []) by (destruct tn; discriminate).
+		apply is_canonical_struct_tl in Hn.
+		apply HR; assumption.
+	+	reflexivity.
+	}
+Qed.
+*)
+
+
+(*
 Lemma is_decomp_app : forall x y decomp,
 		is_decomp x (y ++ [0]) decomp -> is_decomp x y decomp.
 Proof.
@@ -747,23 +875,6 @@ Proof.
 	}
 Qed.
 
-Lemma gtb_cont_total : forall n m b,
-		gtb_cont b n m = true \/ gtb_cont (negb b) m n = true.
-Proof.
-	intro n.
-	{	induction n as [|bn tn HR]; [|destruct bn]; intros m b;
-			(destruct m as [|bm tm]; [|destruct bm]); simpl.
-	+	destruct b; [left|right]; reflexivity.
-	+	right; reflexivity.
-	+	right; reflexivity.
-	+	left; reflexivity.
-	+	apply HR.
-	+	apply HR.
-	+	left; reflexivity.
-	+	apply HR.
-	+	apply HR.
-	}
-Qed.
 
 Lemma gtb_total : forall n m,
 		n = m \/ n >? m = true \/ m >? n = true.
@@ -821,9 +932,13 @@ Proof.
 		}
 	}
 Qed.
+*)
+
 Theorem gtb_nat : forall n m,
-		is_canonical_struct n -> is_canonical_struct m ->
+		is_canonical n -> is_canonical m ->
 		n >? m = (to_nat m <? to_nat n)%nat.
+Admitted.
+(*
 Proof.
 	intros n m Hn Hm.
 	pose proof (Heq1 := gtb_decomp_equiv n m Hn Hm).
@@ -856,12 +971,15 @@ Proof.
 		apply PeanoNat.Nat.le_add_l.
 	}
 Qed.
+*)
 
-Lemma gtb_decomp_eq : forall x n m decompn decompm,
+Lemma gt_inj : forall x n m decompn decompm,
 		is_canonical x -> is_canonical n -> is_canonical m ->
-		Some decompn = gtb_decomp x n ->
-		Some decompm = gtb_decomp x m  ->
+		Some decompn = gt x n ->
+		Some decompm = gt x m  ->
 		n = m <-> decompn = decompm.
+Admitted.
+(*
 Proof.
 	intros x n m decompn decompm Hx Hn Hm Hdn Hdm.
 	{	split; intro H.
@@ -882,12 +1000,15 @@ Proof.
 		assumption.
 	}
 Qed.
+*)
 
 Lemma gtb_decomp_neq : forall x n m (H : n <> m) decompn decompm,
 		is_canonical x -> is_canonical n -> is_canonical m ->
-		Some decompn = gtb_decomp x n ->
-		Some decompm = gtb_decomp x m ->
+		Some decompn = gt x n ->
+		Some decompm = gt x m ->
 		decompn.(dec_diff) <> decompm.(dec_diff).
+Admitted.
+(*
 Proof.
 	intros x n m H decompn decompm Hx Hn Hm Hcn Hcm Ha.
 	assert (Hc : gtb_decomp x n <> gtb_decomp x m)
@@ -916,6 +1037,21 @@ Proof.
 		contradiction.
 	}
 Qed.
+*)
+
+(** Peano *)
+
+Inductive is_Nat : t -> Prop :=
+	| canonical_0 : is_Nat Ob
+	| canonical_inc : forall (n : t),
+		is_Nat n -> is_Nat (inc n).
+
+Local Lemma canonical_1 : is_Nat (snoc Ob 1).
+Proof.
+	replace (snoc Ob 1) with (inc Ob) by reflexivity.
+	apply canonical_inc, canonical_0.
+Qed.
+
 
 
 Module Notations.
@@ -923,5 +1059,6 @@ Module Notations.
 Notation "0" := Zero : bin_nat_scope.
 Notation "1" := One : bin_nat_scope.
 Notation "n - m" := (sub n m) : bin_nat_scope.
-Notation "n >? m" := (gtb n m).
+Notation "n >? m" := (gtb n m) : bin_nat_scope.
+
 End Notations.
