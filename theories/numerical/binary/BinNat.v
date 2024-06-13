@@ -109,6 +109,65 @@ Theorem decide_is_canonicalb: forall n, is_canonicalb n = true <-> is_canonical 
 Qed.
 
 (*
+Lemma is_canonicalb_aux_false : forall n,
+	is_canonicalb_aux false n = true -> is_canonicalb n = true.
+Proof.
+	intros n H.
+	destruct n; [inversion_clear H|].
+	assumption.
+Qed.
+
+Lemma is_canonicalb_snoc : forall b0 b1 n,
+	is_canonicalb (snoc n b1) = true -> is_canonicalb (snoc (snoc n b1) b0) = true.
+Proof.
+	intros b0 b1 n H.
+	destruct b0; assumption.
+Qed.
+
+Lemma is_canonical_struct_tl : forall b n, is_canonical_struct (snoc n b) -> is_canonical_struct n.
+Admitted.
+(*
+Proof.
+	intros b n H.
+	{	destruct n.
+	+	reflexivity.
+	+	destruct b; destruct b0; assumption.
+	}
+Qed.
+*)
+*)
+
+
+(* XXX: delete?
+Definition not b :=
+	match b with
+	| 0 => 1
+	| 1 => 0
+	end.
+
+Definition complement := mapi (fun _ => not).
+Lemma complement_length : forall n,
+		length (complement n) = length n.
+Proof.
+	intros n.
+	apply mapi_length.
+Qed.
+Lemma complement_inj : forall n m,
+		complement n = complement m -> n = m.
+Admitted.
+(*
+Proof.
+	intro n.
+	{	induction n as [|bn tn HR]; intros m H; destruct m as [|bm tm];
+			[|discriminate..|]; simpl in *.
+	+	reflexivity.
+	+	inversion H.
+		destruct bn, bm; [|discriminate..|]; f_equal; apply HR; assumption.
+	}
+Qed.*)
+*)
+
+(*
 
 Lemma is_canonicalb_snoc : forall b0 b1 n,
 	is_canonicalb (snoc n b1) = true -> is_canonicalb (snoc (snoc n b1) b0) = true.
@@ -351,7 +410,6 @@ Proof.
 		rewrite (HR m); [reflexivity|assumption..].
 	}
 Qed.
-
 
 (*
 Lemma inc_decomp : forall (n : t),
@@ -621,7 +679,6 @@ Qed.
 
 (*Local Lemma dec_aux_None : forall n, dec n = None <-> to_nat n = O.
 Admitted.
-
 Proof.
 	intro n.
 	{	split; intro H; functional induction (dec n); simpl in *.

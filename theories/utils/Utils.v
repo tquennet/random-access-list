@@ -1,6 +1,28 @@
 Require Import Lists.List Arith.
 Import ListNotations.
 
+Section Monoid.
+
+Record Monoid (S : Type) : Type :=
+  { monoid_plus : S -> S -> S
+  ; monoid_unit : S
+  }.
+
+Definition Monoid_nat : Monoid nat :=
+  {| monoid_plus := Init.Nat.add ; monoid_unit := 0%nat |}.
+
+Definition Monoid_endo {A} : Monoid (A -> A) :=
+  {| monoid_plus := fun f g a => f (g a);
+     monoid_unit := fun a => a |}.
+
+Definition Monoid_Prop : Monoid Prop :=
+  {| monoid_plus := and ; monoid_unit := True |}.
+
+End Monoid.
+
+Arguments monoid_unit {S} m.
+Arguments monoid_plus {S} m m2.
+
 Section Option.
 
 Context {A : Type} (P : A -> Prop).
@@ -10,6 +32,12 @@ Definition is_some (o : option A) :=
 	| None => false
 	| Some _ => true
 	end.
+
+Definition option_lift {A} (P : A -> Prop)(a: option A): Prop :=
+  match a with
+  | None => True
+  | Some a => P a
+  end.
 
 Variant option_predicate : option A -> Prop :=
 	| OP_None : option_predicate None
@@ -77,6 +105,8 @@ Proof.
 	reflexivity.
 Qed.
 End Options.
+
+Definition option_bind {A B}(o: option A)(f : A -> option B) := option_join f o.
 
 Section List.
 

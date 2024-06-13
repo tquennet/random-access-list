@@ -1,11 +1,19 @@
-
+Require Import utils.Utils.
 
 Inductive Num (A : Type) :=
 | Ob : Num A
 | snoc (n : Num A)(a : A) : Num A.
 
+Definition t := Num.
+
 Arguments Ob {A}.
 Arguments snoc {A} n a.
+
+Fixpoint plug {A} (snoc : Num A -> A -> Num A) (n: Num A)(ctxt: list A): Num A :=
+  match ctxt with
+  | nil => n
+  | cons b ctxt => plug snoc (snoc n b) ctxt
+  end.
 
 Fixpoint length {A}(n : Num A): nat :=
   match n with
@@ -83,6 +91,7 @@ End fold.
 Definition foldir  {A B : Type} (f : nat -> B -> A -> B) (b: B)(n: Num A): B :=
   foldMap Monoid_endor (fun n a b => f n b a) n b.
 
+
 Definition Num_lift {A} (P : nat -> A -> Prop)(n: Num A): Prop :=
   foldMap Monoid_Prop P n.
 
@@ -90,10 +99,4 @@ Fixpoint app {A} (m n : Num A): Num A :=
   match n with
   | Ob => m
   | snoc n a => snoc (app m n) a
-  end.
-
-Fixpoint plug {A} (snoc : Num A -> A -> Num A) (n: Num A)(ctxt: list A): Num A :=
-  match ctxt with
-  | nil => n
-  | cons b ctxt => plug snoc (snoc n b) ctxt
   end.
