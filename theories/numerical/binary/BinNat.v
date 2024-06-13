@@ -527,12 +527,6 @@ Proof.
 	}
 Qed. *)
 
-Definition option_lift {A} (P : A -> Prop)(a: option A): Prop :=
-  match a with
-  | None => True
-  | Some a => P a
-  end.
-
 Theorem dec_pred : forall n,
 	option_lift (fun r => to_nat r = pred (to_nat n)) (dec n).
 Admitted.
