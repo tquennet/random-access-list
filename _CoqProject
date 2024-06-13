@@ -8,5 +8,5 @@ theories/structure/unary/List.v
 theories/numerical/Num.v
 theories/numerical/binary/BinNat.v
 theories/container/binary/Clbt.v
-# theories/structure/binary/Ral.v
-# theories/equiv/binary/BinNat_Ral.v
+theories/structure/binary/Ral.v
+theories/equiv/binary/BinNat_Ral.v
