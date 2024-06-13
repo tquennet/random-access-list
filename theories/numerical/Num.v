@@ -4,6 +4,8 @@ Inductive Num (A : Type) :=
 | Ob : Num A
 | snoc (n : Num A)(a : A) : Num A.
 
+Definition t := Num.
+
 Arguments Ob {A}.
 Arguments snoc {A} n a.
 
