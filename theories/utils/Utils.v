@@ -33,6 +33,12 @@ Definition is_some (o : option A) :=
 	| Some _ => true
 	end.
 
+Definition option_lift {A} (P : A -> Prop)(a: option A): Prop :=
+  match a with
+  | None => True
+  | Some a => P a
+  end.
+
 Variant option_predicate : option A -> Prop :=
 	| OP_None : option_predicate None
 	| OP_Some : forall a, P a -> option_predicate (Some a).
