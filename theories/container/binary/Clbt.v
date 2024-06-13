@@ -1,8 +1,38 @@
 Require Import Program Arith Lists.List.
+Require Import NumRep.utils.Utils.
 Require Import NumRep.numerical.binary.BinNat.
 Import ListNotations.
 
 Open Scope type_scope.
+
+(********************************************************************************)
+(** * Complete leaf binary tree
+
+** Constructors:
+
+- [t] == the type of leaf binary tree
+- [singleton a] == the tree made of a single element [a]
+- [create a h] == the tree of [2^h] copies of [a]
+
+** Predicates:
+
+- [is_valid h t] <=> the tree [t] is complete of height [h]
+
+All the constructors exposed in this module produce valid binary trees
+while operations preserve validity.
+
+** Operations:
+
+- [card t] == number of elements (ie., leafs) in [t]
+- [merge l r] == merge two valid trees [l] and [r] of height [h] into
+  a valid tree of height [h+1]
+- [lookup t dn] == lookup the [dn]-th leaf (counted from left to right)
+  of [t], with [dn] in MSB-first form
+- [update t dn a] == update the [dn]-th element of [t] with [a]
+
+*)
+(********************************************************************************)
+
 
 Section CLBT.
 
@@ -12,26 +42,23 @@ Inductive t :=
 	| Leaf : A -> t
 	| Node : t -> t -> t.
 
+(** [is_valid] *)
+
 Inductive is_valid : nat -> t -> Prop :=
 	| valid_Leaf : forall a : A, is_valid 0 (Leaf a)
 	| valid_Node : forall {n : nat} (l r : t),
 		is_valid n l -> is_valid n r ->
 		is_valid (S n) (Node l r).
 
-Definition singleton (a : A) : t := Leaf a.
-Lemma singleton_valid : forall a : A, is_valid 0 (singleton a).
-Proof.
-	intro a.
-	apply valid_Leaf.
-Qed.
+(** [card] *)
 
-Fixpoint size t : nat :=
+Fixpoint card t : nat :=
 	match t with
 	| Leaf _ => 1
-	| Node l r => size l + size r
+	| Node l r => card l + card r
 	end.
 
-Lemma valid_size : forall n t, is_valid n t -> size t = 2 ^ n.
+Lemma valid_card : forall n t, is_valid n t -> card t = 2 ^ n.
 Proof.
 	intros n t H.
 	{	induction H as [|n l r _ HRl _ HRr].
@@ -42,6 +69,30 @@ Proof.
 	}
 Qed.
 
+(** [create] *)
+
+Fixpoint create (a : A)(h: nat) : t := 
+  match h with
+  | O => Leaf a
+  | S n => let t := create a n in Node t t
+  end.
+
+Lemma create_valid : forall a h, is_valid h (create a h).
+Proof.
+	intro a. induction h as [|h IH].
+	- apply valid_Leaf.
+        - constructor; auto.
+Qed.
+
+(** [singleton] *)
+
+Definition singleton (a : A) : t := create a 0.
+
+Lemma singleton_valid : forall a : A, is_valid 0 (singleton a).
+Proof. intro; apply create_valid. Qed.
+
+(** [merge l r] *)
+
 Definition merge (l r : t) : t := Node l r.
 Lemma merge_valid : forall {n : nat} (l r : t),
 	is_valid n l -> is_valid n r -> is_valid (S n) (merge l r).
@@ -50,6 +101,17 @@ Proof.
 	apply valid_Node; assumption.
 Qed.
 
+(** [lookup] *)
+
+Fixpoint lookup t dn :=
+	match t, dn with
+	| Leaf a, [] => Some a
+	| Node l _, 0 :: tdn => lookup l tdn
+	| Node _ r, 1 :: tdn => lookup r tdn
+        | _, _ => (* Impossible *) None
+	end.
+
+(* XXX: DELETE
 Fixpoint head t : A :=
 	match t with
 	| Leaf a => a
@@ -82,26 +144,25 @@ Proof.
 	inversion_clear H.
 	assumption.
 Qed.
+*)
+
+(** [update] *)
+
 
 Fixpoint update t dn a :=
 	match t, dn with
-	| Leaf _, [] => Leaf a
-	| Node l r, 0 :: tdn => Node l (update r tdn a)
-	| Node l r, 1 :: tdn => Node (update l tdn a) r
-	| _, _ => t
+	| Leaf _, [] => Some (Leaf a)
+	| Node l r, 0 :: tdn => option_map (fun r => Node l r) (update r tdn a)
+	| Node l r, 1 :: tdn => option_map (fun l => Node l r) (update l tdn a)
+	| _, _ => None
 	end.
 
-Fixpoint lookup t dn :=
-	match t, dn with
-	| Leaf a, _ => a
-	| _, [] => head t
-	| Node _ r, 0 :: tdn => lookup r tdn
-	| Node l _, 1 :: tdn => lookup l tdn
-	end.
 
 Lemma update_valid : forall n t a,
 		is_valid (length n) t ->
-		is_valid (length n) (update t n a).
+		option_lift (fun t => is_valid (length n) t) (update t n a).
+Admitted.
+(*
 Proof.
 	intro n.
 	{	induction n as [|bn tn HR]; [|destruct bn]; simpl;
@@ -113,10 +174,15 @@ Proof.
 		apply valid_Node; assumption.
 	}
 Qed.
+*)
+
+(** Equational theory [update]/[lookup] *)
 
 Lemma lookup_update_eq : forall n t a,
 		is_valid (length n) t ->
-		lookup (update t n a) n = a.
+		option_bind (update t n a) (fun t => lookup t n) = Some a.
+Admitted.
+(*
 Proof.
 	intro n.
 	{	induction n as [|bn tn HR]; [|destruct bn]; simpl;
@@ -128,10 +194,14 @@ Proof.
 		assumption.
 	}
 Qed.
+*)
+
 Lemma lookup_update_neq : forall n m t a,
-		(length n) = (length m) -> n <> m ->
+		length n = length m -> n <> m ->
 		is_valid (length n) t ->
-		lookup (update t n a) m = lookup t m.
+		option_bind (update t n a) (fun t => lookup t m) = lookup t m.
+Admitted.
+(*
 Proof.
 	intro n.
 	{	induction n as [|bn tn HR]; [|destruct bn];	intros m t a Hlen Hneq Ht;
@@ -152,7 +222,9 @@ Proof.
 		apply HR; assumption.
 	}
 Qed.
+*)
 
+(* XXX: delete 
 Inductive dt :=
 	| DRoot : dt
 	| DLeft : dt -> t -> dt
@@ -254,7 +326,8 @@ Proof.
 		apply valid_Node; assumption.
 	}
 Qed.
-
+*)
+(* XXX: delete?
 Fixpoint open zip dn :=
 	match dn with
 	| [] => zip
@@ -321,5 +394,5 @@ Proof.
 		reflexivity.
 	}
 Qed.
-
+*)
 End CLBT.
