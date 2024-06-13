@@ -106,6 +106,8 @@ Proof.
 Qed.
 End Options.
 
+Definition option_bind {A B}(o: option A)(f : A -> option B) := option_join f o.
+
 Section List.
 
 Context {A : Type}.
