@@ -1,4 +1,4 @@
-
+Require Import utils.Utils.
 
 Inductive Num (A : Type) :=
 | Ob : Num A
@@ -33,31 +33,13 @@ Definition mapi {A B} (f: nat -> A -> B)(n: Num A): Num B :=
 Lemma mapi_length : forall {A B} (f: nat -> A -> B)(n: Num A), length (mapi f n) = length n.
 Admitted.
 
-Record Monoid (S : Type) : Type :=
-  { monoid_plus : S -> S -> S
-  ; monoid_unit : S
-  }.
-
-Arguments monoid_unit {S} m.
-Arguments monoid_plus {S} m m2.
-
-Definition Monoid_nat : Monoid nat :=
-  {| monoid_plus := Init.Nat.add ; monoid_unit := 0%nat |}.
-
-Definition Monoid_endo {A} : Monoid (A -> A) :=
-  {| monoid_plus := fun f g a => f (g a);
-     monoid_unit := fun a => a |}.
-
-Definition Monoid_Prop : Monoid Prop :=
-  {| monoid_plus := and ; monoid_unit := True |}.
-
-Fixpoint foldM {M} (Mon : Monoid M)(n: Num M): M :=
+Fixpoint foldM {M} (m : Monoid M)(n: Num M): M :=
   match n with
-  | Ob => monoid_unit Mon
-  | snoc n b => monoid_plus Mon (foldM Mon n) b
+  | Ob => m.(monoid_unit)
+  | snoc n b => m.(monoid_plus) (foldM m n) b
   end.
 
-Definition foldMap {A M}(Mon : Monoid M)(f: nat -> A -> M) (n: Num A): M := foldM Mon (mapi f n).
+Definition foldMap {A M}(m : Monoid M)(f: nat -> A -> M) (n: Num A): M := foldM m (mapi f n).
 
 Definition foldi {A B} (f : nat -> B -> A -> B)(b: B)(n: Num A): B := foldMap Monoid_endo (fun n a b => f n b a) n b.
 
