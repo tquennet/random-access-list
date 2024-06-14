@@ -176,18 +176,26 @@ Proof.
 	destruct b0; assumption.
 Qed.
 
-Lemma is_canonical_struct_tl : forall b n, is_canonical_struct (snoc n b) -> is_canonical_struct n.
-Admitted.
-(*
+*)
+
+Lemma is_positive_tl : forall b n, is_positive (snoc n b) -> is_canonical n.
 Proof.
 	intros b n H.
-	{	destruct n.
-	+	reflexivity.
-	+	destruct b; destruct b0; assumption.
+	{	inversion_clear H.
+	+	apply is_Ob.
+	+	apply is_pos.
+		assumption.
+	+	apply is_pos.
+		assumption.
 	}
 Qed.
-*)
-*)
+Lemma is_canonical_tl : forall b n, is_canonical (snoc n b) -> is_canonical n.
+Proof.
+	intros b n H.
+	inversion_clear H as [_n Hn|].
+	apply is_positive_tl in Hn.
+	assumption.
+Qed.
 
 
 (* XXX: delete?
@@ -234,8 +242,8 @@ Definition bit_to_nat (k: nat)(b: Bit): nat :=
   | 1 => 2 ^ k
   end.
 
+Definition list_to_nat := fold_right (fun b a => bit_to_nat O b + 2 * a) O.
 Definition to_nat := foldMap Monoid_nat bit_to_nat.
-
 Lemma to_nat_snoc : forall n b, to_nat (snoc n b) = 2 * (to_nat n) + bit_to_nat O b.
 Proof.
 	intros n.
@@ -266,27 +274,30 @@ Lemma to_nat_app : forall n m, to_nat (app m n) = (to_nat n + to_nat m * 2 ^ len
 	}
 Qed.
 
-(*
-Proof.
-	intros n m Hn.
-	generalize dependent m.
-	{	induction Hn as [|n Hn HR]; intros m Hm Heq; destruct Hm as [|m Hm].
-	+	reflexivity.
-	+	rewrite inc_S in Heq.
-		discriminate.
-	+	rewrite inc_S in Heq.
-		discriminate.
-	+	f_equal.
-		apply HR; [assumption|].
-		rewrite !inc_S in Heq.
-		injection Heq as Heq.
-		assumption.
-	}
-Qed.
-*)
-
 (** Zero *)
 
+Lemma to_list_to_nat : forall n, to_nat n = list_to_nat (to_list n).
+Proof.
+	intro n.
+	{	induction n as [|tn HR bn].
+	+	reflexivity.
+	+	rewrite to_nat_snoc, to_list_snoc, Nat.add_comm, HR.
+		reflexivity.
+	}
+Qed.
+Lemma list_to_nat_app : forall m n,
+		list_to_nat (n ++ m) = list_to_nat n + list_to_nat m * 2 ^ List.length n.
+Proof.
+	intros m n.
+	{	induction n as [|bn tn HR].
+	+	rewrite Nat.mul_1_r.
+		reflexivity.
+	+	rewrite <- app_comm_cons.
+		cbn [list_to_nat fold_right List.length].
+		rewrite HR, Nat.mul_add_distr_l, Nat.add_assoc, Nat.mul_shuffle3.
+		reflexivity.
+	}
+Qed.
 Definition zero : t := Ob.
 
 Theorem is_canonical_zero: is_canonical zero.
@@ -306,6 +317,20 @@ Proof.
 	intros n Hn.
 	destruct n; [inversion Hn|].
 	discriminate.
+Qed.
+Lemma positive_to_nat : forall n, is_positive n -> to_nat n <> O.
+Proof.
+	intros n Hn.
+	{	induction Hn as [|n Hn HR|n Hn HR].
+	+	discriminate.
+	+	rewrite to_nat_snoc; simpl.
+		rewrite <- plus_n_Sm.
+		discriminate.
+	+	rewrite to_nat_snoc; simpl.
+		destruct (to_nat n); [contradiction|].
+		rewrite !plus_Sn_m.
+		discriminate.
+	}
 Qed.
 
 Theorem is_positive_inc: forall n, is_canonical n -> is_positive (inc n).
@@ -335,6 +360,9 @@ Proof.
 		reflexivity.
 	}
 Qed.
+
+
+(** Peano *)
 
 Lemma positive_induction (P : t -> Prop) :
 		P (snoc Ob 1) ->
@@ -367,7 +395,7 @@ Theorem canonical_induction (P : t -> Prop) :
 		forall n, is_canonical n -> P n.
 Proof.
 	intros P0 Pi n Hn.
-	destruct Hn as [|n Hn]; [|assumption].
+	destruct Hn as [n Hn|]; [|assumption].
 	apply positive_induction; [apply (Pi zero), P0; apply is_Ob| |assumption].
 	intros m Hm Hp.
 	apply is_pos in Hm.
@@ -704,9 +732,6 @@ Definition option_lift {A} (P : A -> Prop)(a: option A): Prop :=
   | Some a => P a
   end.
 
-Definition splug := plug ssnoc.
-Definition plug : t -> dt -> t := plug snoc.
-
 Lemma dec_Some : forall n, is_some (dec n) = true -> to_nat n <> O.
 Proof.
 	intros n H.
@@ -763,8 +788,17 @@ Qed.
 
 (** [gt] *)
 
-Notation ctxt_to_nat n := (to_nat (plug Ob n)).
 
+Definition splug := gplug ssnoc.
+
+Notation ctxt_to_nat n := (to_nat (rev n)).
+
+Lemma list_cxt_to_nat : forall n, ctxt_to_nat n = list_to_nat (to_list (rev n)).
+Proof.
+	intro n.
+	rewrite to_list_to_nat.
+	reflexivity.
+Qed.
 Record decomp := mkZip
 {
 	dec_tn : t;
@@ -811,8 +845,9 @@ Definition gtb n m :=
 
 Notation "n >? m" := (gtb n m) : bin_nat_scope.
 
+(*	gérer correctement sub n n *)
 Definition sub n m :=
-  option_map (fun d => splug d.(dec_tn) (0 :: d.(dec_diff))) (gt n m).
+	option_map (fun d => splug d.(dec_tn) (0 :: d.(dec_diff))) (gt n m).
 
 Notation "n - m" := (sub n m) : bin_nat_scope.
 
@@ -909,9 +944,9 @@ Qed.
 *)
 
 
-(*
+
 Lemma is_decomp_app : forall x y decomp,
-		is_decomp x (y ++ [0]) decomp -> is_decomp x y decomp.
+		is_decomp x (app (snoc Ob 0) y) decomp -> is_decomp x y decomp.
 Proof.
 	intros x y decomp H.
 	destruct H as [Hl Hz Hval].
@@ -922,130 +957,165 @@ Proof.
 	assumption.
 Qed.
 
-Lemma gtb_decomp_aux_is_decomp : forall x y n m dn dm an decomp,
-		x = rev_append dn n -> y = rev_append dm m ->
-		is_canonical_struct m ->
-		length an = length dn ->
-		length dm = length dn ->
-		(m <> [] ->
-			Some decomp = gtb_decomp_aux n m dn an ->
-			S (rev_nat an + rev_nat dm) = rev_nat dn ->
+Lemma gt_aux_is_decomp : forall x y n m dn dm an decomp,
+		x = plug n dn -> y = plug m dm ->		
+		List.length an = List.length dn ->
+		List.length dm = List.length dn ->
+		( is_positive m ->
+			Some decomp = gt_aux n m dn an ->
+			S (ctxt_to_nat an + ctxt_to_nat dm) = ctxt_to_nat dn ->
 			is_decomp x y decomp)
-		/\ (
-			Some decomp = gtb_decomp_borrow n m dn an ->
-			S (rev_nat an + rev_nat dm) = rev_nat (1 :: dn) ->
+		/\ ( is_canonical m ->
+			Some decomp = gt_borrow n m dn an ->
+			S (ctxt_to_nat an + ctxt_to_nat dm) = ctxt_to_nat (1 :: dn) ->
 			is_decomp x y decomp).
 Proof.
-	intros x y n.
-	revert y.
-	{	induction n as [|bn tn HR]; [|destruct bn];
-			intros y m dn dm an decomp Hx Hy Hm Hl1 Hl2;
-			(destruct m as [|bm tm]; [|destruct bm; apply is_canonical_struct_tl in Hm as Htm]);
-			(split; [intro He|]; intros H Hval); simpl in *; try discriminate;
+	intros x y n m dn dm an decomp Hx Hy.
+	apply (f_equal to_list) in Hx, Hy.
+	revert y m dn dm an decomp Hx Hy.
+	{	induction n as [|tn HR bn]; [|destruct bn];
+			intros y m dn dm an decomp Hx Hy Hl1 Hl2;
+			(destruct m as [|tm bm]; [|destruct bm]);
+			(split; intros Hm H Hval); simpl in *; try discriminate;
 			apply (f_equal S) in Hl1 as Hsl1; apply (f_equal S) in Hl2 as Hsl2.
-		+	specialize (HR (y ++ [0]) [] (0 :: dn) (0 :: dm) (1 :: an) decomp).
-			assert (y ++ [0] = rev_append (0 :: dm) [])
-				by (rewrite Hy, !rev_append_rev, !app_nil_r; reflexivity).
+		+	specialize (HR (app (snoc Ob 0) y) Ob (0 :: dn) (0 :: dm) (1 :: an) decomp).
+			assert (to_list (app (snoc Ob 0) y) = to_list (plug Ob (0 :: dm))) by
+				(rewrite to_list_app, to_list_snoc, Hy, !to_list_rev; reflexivity).
 			apply is_decomp_app.
 			apply HR; [assumption..|].
+			rewrite !list_cxt_to_nat, !to_list_rev in *.
 			simpl.
-			rewrite !to_nat_app in *.
+			rewrite !list_to_nat_app in *.
 			simpl in *.
 			rewrite <- !plus_n_O in *.
-			rewrite PeanoNat.Nat.add_shuffle0, <- plus_Sn_m, Hval, last_length.
+			rewrite PeanoNat.Nat.add_shuffle0, <- plus_Sn_m, Hval, last_length, !list_to_nat_app.
 			simpl.
 			rewrite <- !plus_n_O, PeanoNat.Nat.add_assoc, !rev_length, Hl1.
 			reflexivity.
-		+	specialize (HR y tm (0 :: dn) (0 :: dm) (0 :: an) decomp Hx Hy Htm Hsl1 Hsl2).
-			assert (tm <> []) by (destruct tm; discriminate).
+		+	specialize (HR y tm (0 :: dn) (0 :: dm) (0 :: an) decomp Hx Hy Hsl1 Hsl2).
+			inversion_clear Hm as [| |_m Htm].
 			apply (proj1 HR); [assumption..|].
+			rewrite !list_cxt_to_nat, !to_list_rev in *.
 			simpl.
-			rewrite !to_nat_app in *.
-			simpl.
+			rewrite !list_to_nat_app in *.
 			rewrite <- !plus_n_O.
 			assumption.
-		+	specialize (HR y tm (0 :: dn) (0 :: dm) (1 :: an) decomp Hx Hy Htm Hsl1 Hsl2).
-			apply (proj2 HR); [assumption|].
+		+	specialize (HR y tm (0 :: dn) (0 :: dm) (1 :: an) decomp Hx Hy Hsl1 Hsl2).
+			apply is_canonical_tl in Hm.
+			apply (proj2 HR); [assumption..|].
+			rewrite !list_cxt_to_nat, !to_list_rev in *.
 			simpl.
-			rewrite !to_nat_app in *.
+			rewrite !list_to_nat_app in *.
 			simpl in *; rewrite <- !plus_n_O in *.
-			rewrite PeanoNat.Nat.add_shuffle0, <- plus_Sn_m, Hval, last_length.
+			rewrite PeanoNat.Nat.add_shuffle0, <- plus_Sn_m, Hval, last_length,
+				!list_to_nat_app.
 			simpl.
 			rewrite <- !plus_n_O, PeanoNat.Nat.add_assoc, !rev_length, Hl1.
 			reflexivity.
-		+	specialize (HR y tm (0 :: dn) (1 :: dm) (1 :: an) decomp Hx Hy Htm Hsl1 Hsl2).
-			apply (proj2 HR); [assumption|].
+		+	specialize (HR y tm (0 :: dn) (1 :: dm) (1 :: an) decomp Hx Hy Hsl1 Hsl2).
+			apply is_positive_tl in Hm.
+			apply (proj2 HR); [assumption..|].
+			rewrite !list_cxt_to_nat, !to_list_rev in *.
 			simpl.
-			rewrite !to_nat_app.
+			rewrite !list_to_nat_app.
 			simpl; rewrite <- !plus_n_O.
 			rewrite PeanoNat.Nat.add_shuffle1, <- plus_Sn_m, Hval, last_length, !rev_length,
 				Hl1, Hl2.
 			simpl; rewrite <- plus_n_O.
 			reflexivity.
-		+	specialize (HR y tm (0 :: dn) (1 :: dm) (0 :: an) decomp Hx Hy Htm Hsl1 Hsl2).
-			apply (proj2 HR); [assumption|].
+		+	specialize (HR y tm (0 :: dn) (1 :: dm) (0 :: an) decomp Hx Hy Hsl1 Hsl2).
+			apply is_canonical_tl in Hm.
+			apply (proj2 HR); [assumption..|].
+			rewrite !list_cxt_to_nat, !to_list_rev in *.
 			simpl.
-			rewrite !to_nat_app in *.
+			rewrite !list_to_nat_app in *.
 			simpl in *; rewrite <- !plus_n_O in *.
-			rewrite PeanoNat.Nat.add_assoc, <- plus_Sn_m, Hval, last_length, !rev_length,
-				Hl2.
+			rewrite PeanoNat.Nat.add_assoc, <- plus_Sn_m, Hval, last_length,
+				!list_to_nat_app, !rev_length, Hl2.
 			simpl; rewrite <- plus_n_O, PeanoNat.Nat.add_assoc.
 			reflexivity.
 		+	inversion_clear H.
-			rewrite rev_append_rev, app_nil_r in Hy.
+			rewrite !list_cxt_to_nat, !to_list_rev in *.
 			rewrite <- Hy in Hval.
-			split; simpl; assumption.
-		+	specialize (HR y tm (1 :: dn) (0 :: dm) (1 :: an) decomp Hx Hy Htm Hsl1 Hsl2).
-			assert (tm <> []) by (destruct tm; discriminate).
+			{	split; simpl.
+			+	assumption.
+			+	apply to_list_inj.
+				assumption.
+			+	rewrite !list_cxt_to_nat, !to_list_to_nat, !to_list_rev.
+				assumption.
+			}
+		+	specialize (HR y tm (1 :: dn) (0 :: dm) (1 :: an) decomp Hx Hy Hsl1 Hsl2).
+			inversion_clear Hm as [| |_m Htm].
+			apply positive_non_zero in Htm as Hnz.
+			destruct tm; [contradiction|].
 			apply (proj1 HR); [assumption..|].
+			rewrite !list_cxt_to_nat, !to_list_rev in *.
 			simpl.
-			rewrite !to_nat_app.
+			rewrite !list_to_nat_app.
 			simpl; rewrite <- !plus_n_O.
 			rewrite PeanoNat.Nat.add_shuffle0, <- plus_Sn_m, Hval, !rev_length, Hl1.
 			reflexivity.
-		+	specialize (HR y tm (1 :: dn) (0 :: dm) (0 :: an) decomp Hx Hy Htm Hsl1 Hsl2).
-			assert (tm <> []) by (destruct tm; discriminate).
+		+	specialize (HR y tm (1 :: dn) (0 :: dm) (0 :: an) decomp Hx Hy Hsl1 Hsl2).
+			inversion_clear Hm as [_m Hm2|].
+			inversion_clear Hm2 as [| |_m Htm].
 			apply (proj1 HR); [assumption..|].
+			rewrite !list_cxt_to_nat, !to_list_rev in *.
 			simpl.
-			rewrite !to_nat_app in *.
-			simpl in *; rewrite <- !plus_n_O in *.
+			rewrite !list_to_nat_app in *.
+			simpl in *; rewrite !list_to_nat_app, <- !plus_n_O in *.
 			rewrite Hval.
+			simpl.
+			rewrite <- plus_n_O.
 			reflexivity.
-		+	{	destruct tm.
-			+	inversion_clear H.
-				split; [assumption..|]; simpl.
-				rewrite Hy, rev_append_rev, !to_nat_app.
-				simpl; rewrite <- !plus_n_O.
-				rewrite PeanoNat.Nat.add_assoc, <- plus_Sn_m, Hval, !rev_length, Hl2.
-				reflexivity.
-			+	specialize (HR y (b :: tm) (1 :: dn) (1 :: dm) (0 :: an) decomp Hx Hy Htm Hsl1 Hsl2).
-				apply (proj1 HR); [discriminate|assumption|].
+		+	{	inversion Hm as [Hvtm|_m Htm Hvtm|].
+			+	rewrite <- Hvtm in *; simpl in *.
+				inversion_clear H.
+				{	split; simpl.
+				+	assumption.
+				+	apply to_list_inj.
+					assumption.
+				+	rewrite !list_cxt_to_nat, !to_list_to_nat, !to_list_rev,
+						Hy, to_list_plug, to_list_snoc in *.
+					simpl.
+					rewrite !rev_append_rev, !list_to_nat_app.
+					rewrite PeanoNat.Nat.add_assoc, <- plus_Sn_m, Hval.
+					simpl; rewrite <- !plus_n_O, !rev_length, Hl2.
+					reflexivity.
+				}
+			+	apply positive_non_zero in Htm as Hnz.
+				destruct tm as [|tm b]; [contradiction|].
+				specialize (HR y (snoc tm b) (1 :: dn) (1 :: dm) (0 :: an) decomp Hx Hy Hsl1 Hsl2).
+				apply (proj1 HR); [assumption..|].
+				rewrite !list_cxt_to_nat, !to_list_rev in *.
 				simpl.
-				rewrite !to_nat_app.
+				rewrite !list_to_nat_app.
 				simpl; rewrite <- !plus_n_O.
 				rewrite PeanoNat.Nat.add_assoc, <- plus_Sn_m, Hval, !rev_length, Hl2.
 				reflexivity.
 			}
-		+	specialize (HR y tm (1 :: dn) (1 :: dm) (1 :: an) decomp Hx Hy Htm Hsl1 Hsl2).
+		+	specialize (HR y tm (1 :: dn) (1 :: dm) (1 :: an) decomp Hx Hy Hsl1 Hsl2).
+			apply is_canonical_tl in Hm as Htm.
 			apply (proj2 HR); [assumption..|].
+			rewrite !list_cxt_to_nat, !to_list_rev in *.
 			simpl.
-			rewrite !to_nat_app in *.
+			rewrite !list_to_nat_app in *.
 			simpl in *; rewrite <- !plus_n_O in *.
-			rewrite PeanoNat.Nat.add_shuffle1, <- plus_Sn_m, Hval, last_length, !rev_length.
+			rewrite PeanoNat.Nat.add_shuffle1, <- plus_Sn_m, Hval, last_length,
+				!list_to_nat_app, !rev_length.
 			simpl.
 			rewrite <- !plus_n_O, Hl1, Hl2.
 			reflexivity.
 	}
 Qed.
 
-Lemma gtb_decomp_is_decomp : forall n m decomp,
-		is_canonical_struct m ->
-		Some decomp = gtb_decomp n m ->
+Lemma gt_is_decomp : forall n m decomp,
+		is_canonical m ->
+		Some decomp = gt n m ->
 		is_decomp n m decomp.
 Proof.
 	intros n m decomp Hm H.
-	unfold gtb_decomp in *.
-	apply (gtb_decomp_aux_is_decomp n m n m [] []) in H;
+	unfold gt in *.
+	apply (gt_aux_is_decomp n m n m [] []) in H;
 		(assumption || reflexivity).
 Qed.
 
@@ -1063,13 +1133,13 @@ Proof.
 Qed.
 
 
-Lemma gtb_total : forall n m,
+(*Lemma gtb_total : forall n m,
 		n = m \/ n >? m = true \/ m >? n = true.
 Proof.
 	intro n.
 	unfold gtb.
-	{	induction n as [|bn tn HR]; [|destruct bn]; intro m;
-			(destruct m as [|bm tm]; [|destruct bm]); simpl.
+	{	induction n as [|tn HR bn]; [|destruct bn]; intro m;
+			(destruct m as [|tm bm]; [|destruct bm]); simpl.
 	+	left; reflexivity.
 	+	right; right; reflexivity.
 	+	right; right; reflexivity.
@@ -1119,64 +1189,142 @@ Proof.
 		}
 	}
 Qed.
-*)
+ *)
+
+Lemma le_double_0 : forall n, n <= 0 -> 2 * n <= 0.
+Proof.
+	intros n H.
+	rewrite <- (Nat.mul_0_r 2) at 2.
+	apply Nat.mul_le_mono_l.
+	assumption.
+Qed.
+
+Lemma lt_double_S : forall n m, n < m -> S (2 * n) < 2 * m.
+Proof.
+	intros n m H.
+	simpl; rewrite <- !plus_n_O, <- plus_Sn_m.
+	apply Nat.add_le_lt_mono; assumption.
+Qed.
+Lemma gt_aux_None : forall n m dn an,
+		(is_positive m -> gt_aux n m dn an = None -> to_nat n < to_nat m)
+		/\ (is_canonical m -> gt_borrow n m dn an = None -> to_nat n <= to_nat m).
+Proof.
+	intro n.
+	{	induction n as [|tn HR bn]; [|destruct bn]; intros m dn an;
+			(destruct m as [|tm bm]; [|destruct bm]);
+			split; intros Hm H; simpl in *.
+	+	inversion_clear Hm.
+	+	apply le_n.
+	+	apply positive_to_nat in Hm.
+		destruct (to_nat (snoc tm 0)); [contradiction|].
+		apply Nat.lt_0_succ.
+	+	apply le_0_n.
+	+	rewrite to_nat_snoc; simpl.
+		rewrite <- plus_n_Sm.
+		apply Nat.lt_0_succ.		
+	+	apply le_0_n.
+	+	inversion_clear Hm.
+	+	rewrite to_nat_snoc, <- plus_n_O.
+		apply le_double_0, (proj2 (HR Ob (0 :: dn) (1 :: an))); assumption.
+	+	rewrite !to_nat_snoc, <- !plus_n_O.
+		inversion_clear Hm as [| |_n Htm].
+		apply Nat.mul_lt_mono_pos_l, (proj1 (HR tm (0 :: dn) (0 :: an))); auto.
+	+	rewrite !to_nat_snoc, <- !plus_n_O.
+		apply is_canonical_tl in Hm as Htm.
+		apply Nat.mul_le_mono_l, (proj2 (HR tm (0 :: dn) (1 :: an))); assumption.
+	+	rewrite !to_nat_snoc.
+		apply is_positive_tl in Hm as Htm.
+		cbn [bit_to_nat pow].
+		rewrite <- plus_n_Sm, <- !plus_n_O.
+		apply le_n_S, Nat.mul_le_mono_l, (proj2 (HR tm (0 :: dn) (1 :: an))); assumption.
+	+	rewrite !to_nat_snoc.
+		apply is_canonical_tl in Hm as Htm.
+		cbn [bit_to_nat pow].
+		rewrite <- plus_n_Sm, <- !plus_n_O.
+		apply le_S, Nat.mul_le_mono_l, (proj2 (HR tm (0 :: dn) (0 :: an))); assumption.
+	+	inversion_clear Hm.
+	+	discriminate.
+	+	rewrite !to_nat_snoc.
+		inversion_clear Hm as [| |_m Htm].
+		cbn [bit_to_nat pow].
+		rewrite <- plus_n_Sm, <- !plus_n_O.
+		apply lt_double_S.
+		destruct tm eqn:Hd; rewrite <- Hd in *;
+			apply (proj1 (HR tm (1 :: dn) (1 :: an))); assumption.
+	+	rewrite !to_nat_snoc.
+		inversion_clear Hm as [_m Hm2|].
+		inversion_clear Hm2 as [| |_m Htm].
+		cbn [bit_to_nat pow].
+		rewrite <- plus_n_Sm, <- !plus_n_O.
+		apply Nat.lt_le_incl, lt_double_S.
+		apply (proj1 (HR tm (1 :: dn) (0 :: an))); assumption.
+	+	rewrite !to_nat_snoc.
+		cbn [bit_to_nat pow].
+		rewrite <- !plus_n_Sm, <- !plus_n_O.
+		apply le_n_S.
+		destruct tm as [|tm b]; [discriminate|].
+		inversion_clear Hm as [|_m Htm|].
+		apply Nat.mul_lt_mono_pos_l, (proj1 (HR (snoc tm b) (1 :: dn) (0 :: an))); auto.
+	+	rewrite !to_nat_snoc.
+		apply is_canonical_tl in Hm as Htm.
+		cbn [bit_to_nat pow].
+		rewrite <- !plus_n_Sm, <- !plus_n_O.
+		apply le_n_S.
+		apply Nat.mul_le_mono_l, (proj2 (HR tm (1 :: dn) (1 :: an))); assumption.
+	}
+Qed.
+
+Lemma gt_None : forall n m,
+		is_canonical m ->
+		gt n m = None ->
+		to_nat n <= to_nat m.
+Proof.
+	intros n m Hm H.
+	apply (gt_aux_None n m [] []); assumption.
+Qed.
 
 Theorem gtb_nat : forall n m,
 		is_canonical n -> is_canonical m ->
 		n >? m = (to_nat m <? to_nat n)%nat.
-Admitted.
-(*
 Proof.
 	intros n m Hn Hm.
-	pose proof (Heq1 := gtb_decomp_equiv n m Hn Hm).
-	pose proof (Heq2 := gtb_decomp_equiv m n Hm Hn).
-	pose proof (Hdecomp1 := gtb_decomp_is_decomp n m).
-	pose proof (Hdecomp2 := gtb_decomp_is_decomp m n).
-	{	destruct (gtb_total n m) as [H|H]; [|destruct H as [H|H]].
-	+	rewrite H, gtb_antireflexive, PeanoNat.Nat.ltb_irrefl.
+	pose proof (Hsome := gt_is_decomp n m).
+	pose proof (Hnone := gt_None n m Hm).
+	unfold gtb.
+	{	destruct gt as [decomp|] eqn:H.
+	+	apply eq_sym, Nat.ltb_lt.
+		destruct (Hsome decomp Hm eq_refl) as [Hl Hz Hval],
+			decomp as [tn dn diff]; simpl in *.
+		rewrite <- plus_Sn_m in Hval.
+		assert (H1 : to_nat m < ctxt_to_nat (1 :: dn)) by
+			(rewrite <- Hval; apply Nat.lt_add_pos_l, Nat.lt_0_succ).
+		apply (f_equal to_nat) in Hz.
+		rewrite (to_list_to_nat (plug _ _)) in Hz.
+		rewrite to_list_plug, to_list_snoc in Hz.
+		replace (rev_append dn (1 :: to_list tn)) with (rev_append (1 :: dn) (to_list tn))
+			in Hz by reflexivity.
+		rewrite rev_append_rev, list_to_nat_app, <- to_list_rev, <- list_cxt_to_nat in Hz.
+		assert (H2 : ctxt_to_nat (1 :: dn) <= to_nat n) by (rewrite Hz; apply Nat.le_add_r).
+		apply (Nat.lt_le_trans _ (ctxt_to_nat (1 :: dn))); assumption.
+	+	apply eq_sym, Nat.ltb_ge, Hnone.
 		reflexivity.
-	+	rewrite H in *.
-		destruct (gtb_decomp n m) as [decomp|]; [|discriminate].
-		apply eq_sym, PeanoNat.Nat.ltb_lt.
-		destruct (Hdecomp1 decomp Hm eq_refl) as [_ Hzip Hval], decomp as [tn dn ddiff].
-		simpl in *.
-		replace (rev_append _ _) with (rev_append (1 :: dn) tn) in Hzip by reflexivity.
-		rewrite Hzip, rev_append_rev, !to_nat_app.
-		simpl.
-		rewrite <- Hval, plus_Sn_m, PeanoNat.Nat.add_shuffle0, <- plus_Sn_m.
-		apply PeanoNat.Nat.lt_add_pos_l, PeanoNat.Nat.lt_0_succ.
-	+	destruct (gtb_antisym n m) as [Ha|Ha]; rewrite H in *; [|discriminate].
-		rewrite Ha.
-		destruct (gtb_decomp m n) as [decomp|]; [|discriminate].
-		apply eq_sym, PeanoNat.Nat.ltb_ge.
-		destruct (Hdecomp2 decomp Hn eq_refl) as [_ Hzip Hval], decomp as [tm dm ddiff].
-		simpl in *.
-		replace (rev_append _ _) with (rev_append (1 :: dm) tm) in Hzip by reflexivity.
-		rewrite Hzip, rev_append_rev, !to_nat_app.
-		simpl.
-		rewrite <- Hval, plus_Sn_m, PeanoNat.Nat.add_shuffle0, <- plus_Sn_m.
-		apply PeanoNat.Nat.le_add_l.
 	}
 Qed.
-*)
 
 Lemma gt_inj : forall x n m decompn decompm,
 		is_canonical x -> is_canonical n -> is_canonical m ->
 		Some decompn = gt x n ->
 		Some decompm = gt x m  ->
 		n = m <-> decompn = decompm.
-Admitted.
-(*
 Proof.
 	intros x n m decompn decompm Hx Hn Hm Hdn Hdm.
 	{	split; intro H.
 	+	rewrite H, <- Hdm in Hdn.
 		inversion_clear Hdn.
 		reflexivity.
-	+	apply canonical_unicity; [assumption..|].
-		apply is_canonical_struct_equiv in Hn, Hm.
-		pose proof (Hxn := gtb_decomp_is_decomp x n decompn Hn Hdn).
-		pose proof (Hxm := gtb_decomp_is_decomp x m decompm Hm Hdm).
+	+	apply to_nat_inj; [assumption..|].
+		pose proof (Hxn := gt_is_decomp x n decompn Hn Hdn).
+		pose proof (Hxm := gt_is_decomp x m decompm Hm Hdm).
 		destruct decompn as [tn dn an], decompm as [tm dm am],
 				Hxn as [_ _ Hnv], Hxm as [_ _ Hmv]; simpl in *.
 		revert Hnv Hmv.
@@ -1187,59 +1335,43 @@ Proof.
 		assumption.
 	}
 Qed.
-*)
 
-Lemma gtb_decomp_neq : forall x n m (H : n <> m) decompn decompm,
+Lemma gt_inj_neq : forall x n m (H : n <> m) decompn decompm,
 		is_canonical x -> is_canonical n -> is_canonical m ->
 		Some decompn = gt x n ->
 		Some decompm = gt x m ->
 		decompn.(dec_diff) <> decompm.(dec_diff).
-Admitted.
-(*
 Proof.
 	intros x n m H decompn decompm Hx Hn Hm Hcn Hcm Ha.
-	assert (Hc : gtb_decomp x n <> gtb_decomp x m)
+	assert (Hc : gt x n <> gt x m)
 		by (intro Hc; rewrite <- Hcn, <- Hcm in Hc; inversion Hc as [Hc1];
-			apply (gtb_decomp_eq x n m) in Hc1; [contradiction|assumption..]).
+			apply (gt_inj x n m) in Hc1; [contradiction|assumption..]).
 	rewrite <- Hcn, <- Hcm in Hc.
-	apply is_canonical_struct_equiv in Hn, Hm.
-	pose proof (Hdn := gtb_decomp_is_decomp x n decompn Hn Hcn).
-	pose proof (Hdm := gtb_decomp_is_decomp x m decompm Hm Hcm).
+	pose proof (Hdn := gt_is_decomp x n decompn Hn Hcn).
+	pose proof (Hdm := gt_is_decomp x m decompm Hm Hcm).
 	destruct decompn as [tn dn an], decompm as [tm dm am],
 		Hdn as [Hln Hzn Hvn], Hdm as [Hlm Hzm Hvm]; simpl in *.
-	{	destruct (PeanoNat.Nat.eq_dec (length an) (length am)) as [Hl|Hl].
+	{	destruct (PeanoNat.Nat.eq_dec (List.length an) (List.length am)) as [Hl|Hl].
 	+	rewrite Hlm, Hln, <- (rev_length dn), <- (rev_length dm) in Hl.
 		rewrite Hzm in Hzn.
-		apply (f_equal (firstn (length (rev dm)))) in Hzn as Hfz.
-		rewrite (plus_n_O (length (rev dm))), !rev_append_rev, firstn_app_2,
+		apply (f_equal to_list) in Hzn.
+		apply (f_equal (firstn (List.length (List.rev dm)))) in Hzn as Hfz.
+		rewrite !to_list_plug, !to_list_snoc, !rev_append_rev in Hfz.
+		rewrite (plus_n_O (List.length (List.rev dm))), firstn_app_2,
 			<- Hl, firstn_app_2, !app_nil_r in Hfz.
 		apply rev_inj in Hfz.
-		apply (f_equal (skipn (length (rev dm)))) in Hzn as Hsz.
+		apply (f_equal (skipn (List.length (List.rev dm)))) in Hzn as Hsz.
+		rewrite !to_list_plug, !to_list_snoc in Hsz.
 		rewrite !rev_append_rev, !skipn_app, skipn_all, <- Hl, skipn_all,
 			PeanoNat.Nat.sub_diag in Hsz.
 		inversion Hsz as [Hs].
+		apply to_list_inj in Hs.
 		rewrite Hfz, Hs, Ha in Hc.
 		contradiction.
 	+	rewrite Ha in Hl.
 		contradiction.
 	}
 Qed.
-*)
-
-(** Peano *)
-
-Inductive is_Nat : t -> Prop :=
-	| canonical_0 : is_Nat Ob
-	| canonical_inc : forall (n : t),
-		is_Nat n -> is_Nat (inc n).
-
-Local Lemma canonical_1 : is_Nat (snoc Ob 1).
-Proof.
-	replace (snoc Ob 1) with (inc Ob) by reflexivity.
-	apply canonical_inc, canonical_0.
-Qed.
-
-
 
 Module Notations.
 
