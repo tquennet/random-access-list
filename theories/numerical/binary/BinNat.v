@@ -1239,7 +1239,13 @@ Proof.
 	apply canonical_inc, canonical_0.
 Qed.
 
+Theorem nat_ind: forall (P: t -> Prop),
+    P Ob ->
+    (forall n, is_canonical n -> P n -> P (inc n)) ->
+    forall n, is_canonical n -> P n.
+Admitted.
 
+(** Notations *)
 
 Module Notations.
 
