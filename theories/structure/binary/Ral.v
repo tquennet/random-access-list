@@ -126,32 +126,23 @@ Definition t := ArrayList.
 
 Definition dt := list (ArrayBit Tree).
 
-Fixpoint plug t (dt: dt) := 
+(*Fixpoint plug t (dt: dt) := 
   match dt with
   | [] => t
   | b :: dt => plug (snoc t b) dt
-  end.
+  end.*)
 
 (** [to_bin] *)
 
-Definition to_bin (l: t) := Num.mapi (fun _ => to_bit) l.
+Definition to_bin (l: t) := Num.map to_bit l.
 
 Lemma to_bin_length : forall l, Num.length (to_bin l) = Num.length l.
-Admitted.
-(*
 Proof.
-	intros l.
-	{	induction l as [|bl tl HR]; [|destruct bl]; simpl in *.
-	+	reflexivity.
-	+	f_equal.
-		apply HR.
-	+	f_equal.
-		apply HR.
-	}
-Qed. *)
+	apply mapi_length.
+Qed.
 
 (* XXX: delete? 
-Lemma strip_zero_inj : forall n l, to_bin l = repeat 0 n -> l = repeat Zero n.
+Lemma to_bin_zero_inj : forall n l, to_bin l = repeat 0 n -> l = repeat Zero n.
 Proof.
 	intro n.
 	{	induction n as [|n HR]; intros l H; simpl in *.
@@ -169,15 +160,16 @@ Qed.
 (** [card] *)
 
 Definition card (l : t) : nat :=
-  Num.foldMap Monoid_nat (fun _ => foldMap Monoid_nat CLBT.card) l.
+  Num.foldMap Monoid_nat (fun _ => foldMap Monoid_nat CLBT.card) 0 l.
 
 (** [is_valid] *)
 
 Definition is_valid_ArrayBit (h: nat)(b: ArrayBit Tree) :=
   foldMap Monoid_Prop (CLBT.is_valid h) b.
 
-Definition is_valid (l: ArrayList) :=
-  Num.foldMap Monoid_Prop is_valid_ArrayBit l.
+Definition is_valid_k (k : nat) (l: ArrayList) :=
+  Num.foldMap Monoid_Prop is_valid_ArrayBit k l.
+Definition is_valid := is_valid_k 0.
 
 Inductive is_validP (h: nat)(l: ArrayList): Prop := 
   (* XXX: equivalent, inductive formulation of [is_valid] *).
@@ -189,8 +181,33 @@ Inductive is_dvalid : nat -> dt -> Prop :=
                 is_dvalid n dl ->
                 is_dvalid (S n) (b :: dl).
 
-Theorem to_bin_card_valid : forall l, is_valid l -> BinNat.to_nat (to_bin l) = card l.
-Admitted.
+Theorem to_bin_card_valid : forall (l : t), is_valid l -> BinNat.to_nat (to_bin l) = card l.
+Proof.
+	intros l H.
+	enough (He : forall (k : nat), is_valid_k k l ->
+		Num.foldMap Monoid_nat BinNat.bit_to_nat k (to_bin l) =
+		Num.foldMap Monoid_nat (fun _ => foldMap Monoid_nat CLBT.card) k l) by
+	  (apply He in H; assumption).
+	clear H.
+	{	induction l as [|tl HR bl]; [|destruct bl]; simpl;
+			intros k Hn; destruct Hn as [Htn H].
+	+	reflexivity.
+	+	unfold to_bin.
+		rewrite map_snoc.
+		cbn [Num.foldMap foldM mapi Monoid_nat monoid_plus].
+		cbn [to_bit BinNat.bit_to_nat foldMap monoid_unit Monoid_nat].
+		rewrite <- !plus_n_O.
+		apply HR.
+		assumption.
+	+	unfold to_bin, Num.foldMap in *.
+		rewrite map_snoc.
+		simpl in H.
+		cbn [foldM mapi Monoid_nat monoid_plus].
+		cbn [to_bit BinNat.bit_to_nat foldMap monoid_unit Monoid_nat].
+		rewrite (CLBT.valid_card k), (HR (S k)); [|assumption..].
+		reflexivity.
+	}
+Qed.
 (*
 Proof.
 	intros l H.
