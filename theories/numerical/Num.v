@@ -40,27 +40,6 @@ Admitted.
 
 End mapi.
 
-Record Monoid (S : Type) : Type :=
-  { monoid_plus : S -> S -> S
-  ; monoid_unit : S
-  }.
-
-Arguments monoid_unit {S} m.
-Arguments monoid_plus {S} m m2.
-
-Definition Monoid_nat : Monoid nat :=
-  {| monoid_plus := Init.Nat.add ; monoid_unit := 0%nat |}.
-
-Definition Monoid_endol {A} : Monoid (A -> A) :=
-  {| monoid_plus := fun f g a => f (g a);
-     monoid_unit := fun a => a |}.
-Definition Monoid_endor {A} : Monoid (A -> A) :=
-  {| monoid_plus := fun f g a => g (f a);
-     monoid_unit := fun a => a |}.
-
-Definition Monoid_Prop : Monoid Prop :=
-  {| monoid_plus := and ; monoid_unit := True |}.
-
 Fixpoint foldM {M} (Mon : Monoid M)(n: Num M): M :=
   match n with
   | Ob => monoid_unit Mon

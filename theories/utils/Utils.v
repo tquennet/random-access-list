@@ -11,8 +11,11 @@ Record Monoid (S : Type) : Type :=
 Definition Monoid_nat : Monoid nat :=
   {| monoid_plus := Init.Nat.add ; monoid_unit := 0%nat |}.
 
-Definition Monoid_endo {A} : Monoid (A -> A) :=
+Definition Monoid_endol {A} : Monoid (A -> A) :=
   {| monoid_plus := fun f g a => f (g a);
+     monoid_unit := fun a => a |}.
+Definition Monoid_endor {A} : Monoid (A -> A) :=
+  {| monoid_plus := fun f g a => g (f a);
      monoid_unit := fun a => a |}.
 
 Definition Monoid_Prop : Monoid Prop :=
@@ -38,6 +41,16 @@ Definition option_lift {A} (P : A -> Prop)(a: option A): Prop :=
   | None => True
   | Some a => P a
   end.
+
+Lemma lift_map {X Y}: forall (P : Y -> Prop)(r: option X)(f: X -> Y),
+    option_lift P (option_map f r)
+    = option_lift (fun t => P (f t)) r.
+Proof. intros *; destruct r; auto. Qed.
+
+Lemma lift_conseq {X}: forall (P Q : X -> Prop)(r: option X),
+    (forall x, P x -> Q x) ->
+    option_lift P r -> option_lift Q r.
+Proof. intros; destruct r; simpl; auto. Qed.
 
 Variant option_predicate : option A -> Prop :=
 	| OP_None : option_predicate None
@@ -107,6 +120,16 @@ Qed.
 End Options.
 
 Definition option_bind {A B}(o: option A)(f : A -> option B) := option_join f o.
+
+Lemma bind_fail {X Y}: forall (m: option X),
+    option_bind (B := Y) m (fun _ => None) = None.
+Proof. intros; destruct m; auto. Qed.
+
+Lemma bind_map {X Y Z}: forall (f: X -> Y)(r: option X)(k: Y -> option Z),
+    option_bind
+      (option_map f r) k
+    = option_bind r (fun t => k (f t)).
+Proof. intros *; destruct r; auto. Qed.
 
 Section List.
 
