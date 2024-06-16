@@ -27,18 +27,47 @@ Section mapi.
 
 Context {A B : Type} (f: nat -> A -> B).
 
-Fixpoint mapi_aux (i : nat) (n: Num A) : Num B :=
+Fixpoint mapi (i : nat) (n: Num A) : Num B :=
   match n with
   | Ob => Ob
-  | snoc n a => snoc (mapi_aux (S i) n) (f i a)
+  | snoc n a => snoc (mapi (S i) n) (f i a)
   end.
 
-Definition mapi (n: Num A): Num B := mapi_aux 0 n.
-
-Lemma mapi_length : forall (n: Num A), length (mapi n) = length n.
-Admitted.
+Lemma mapi_length : forall (i : nat) (n: Num A), length (mapi i n) = length n.
+Proof.
+	intros i n.
+	revert i.
+	{	induction n as [|tn HR bn]; intro k; simpl.
+	+	reflexivity.
+	+	rewrite HR.
+		reflexivity.
+	}
+Qed.
 
 End mapi.
+
+Section map.
+
+Context {A B : Type} (f: A -> B).
+
+Let f' : nat -> A -> B := (fun _ => f).
+
+Definition map (n : Num A) : Num B := mapi f' O n.
+
+Lemma map_snoc : forall n b, map (snoc n b) = snoc (map n) (f b).
+Proof.
+	intros n b.
+	unfold map.
+	cbn [mapi].
+	enough (H : forall k, mapi f' (S k) n = mapi f' k n) by (rewrite H; reflexivity).
+	{	induction n as [|tn HR bn]; intro k; simpl.
+	+	reflexivity.
+	+	rewrite HR.
+		reflexivity.
+	}
+Qed.
+
+End map.
 
 Fixpoint foldM {M} (Mon : Monoid M)(n: Num M): M :=
   match n with
@@ -46,35 +75,38 @@ Fixpoint foldM {M} (Mon : Monoid M)(n: Num M): M :=
   | snoc n b => monoid_plus Mon (foldM Mon n) b
   end.
 
-Definition foldMap {A M}(Mon : Monoid M)(f: nat -> A -> M) (n: Num A): M := foldM Mon (mapi f n).
+Definition foldMap {A M}(Mon : Monoid M)(f: nat -> A -> M) (i : nat) (n: Num A): M :=
+	foldM Mon (mapi f i n).
 
 Section fold.
 
 Context {A B : Type} (f : B -> A -> B).
 Let f' := (fun (_ : nat) a b => f b a).
 
-Definition foldl (b: B) (n: Num A) := foldMap Monoid_endol f' n b.
-Definition foldr (b: B) (n: Num A) := foldMap Monoid_endor f' n b.
+Definition foldl (b: B) (n: Num A) := foldMap Monoid_endol f' 0 n b.
+Definition foldr (b: B) (n: Num A) := foldMap Monoid_endor f' 0 n b.
 
-Lemma fold_snoc : forall b bn tn, foldr b (snoc tn bn) = f (foldr b tn) bn.
+Lemma foldr_snoc : forall b bn tn, foldr b (snoc tn bn) = f (foldr b tn) bn.
 Proof.
 	intros b bn tn.
 	unfold foldr, foldMap.
 	simpl.
-	assert (forall k, mapi_aux f' (S k) tn = mapi_aux f' k tn) by
-		(induction tn as [|tn HR b0]; intro k; [|simpl; rewrite HR]; reflexivity).
-	rewrite H.
-	reflexivity.
+	enough (H : forall k, mapi f' (S k) tn = mapi f' k tn) by (rewrite H; reflexivity).
+	{	induction tn as [|tn HR b0]; intro k; simpl.
+	+	reflexivity.
+	+	rewrite HR.
+		reflexivity.
+	}
 Qed.
 
 End fold.
 
-Definition foldir  {A B : Type} (f : nat -> B -> A -> B) (b: B)(n: Num A): B :=
-  foldMap Monoid_endor (fun n a b => f n b a) n b.
+Definition foldir  {A B : Type} (f : nat -> B -> A -> B) (i : nat) (b: B)(n: Num A): B :=
+  foldMap Monoid_endor (fun n a b => f n b a) i n b.
 
 
-Definition Num_lift {A} (P : nat -> A -> Prop)(n: Num A): Prop :=
-  foldMap Monoid_Prop P n.
+Definition Num_lift {A} (P : nat -> A -> Prop) (i : nat) (n: Num A): Prop :=
+  foldMap Monoid_Prop P i n.
 
 
 Fixpoint app {A} (m n : Num A): Num A :=
@@ -93,7 +125,7 @@ Lemma to_list_snoc : forall l b, to_list (snoc l b) = b :: to_list l.
 Proof.
 	intros l b.
 	unfold to_list.
-	rewrite fold_snoc.
+	rewrite foldr_snoc.
 	reflexivity.
 Qed.
 

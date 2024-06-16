@@ -246,18 +246,18 @@ Definition bit_to_nat (k: nat)(b: Bit): nat :=
   end.
 
 Definition list_to_nat := fold_right (fun b a => bit_to_nat O b + 2 * a) O.
-Definition to_nat := foldMap Monoid_nat bit_to_nat.
+Definition to_nat := foldMap Monoid_nat bit_to_nat 0.
 Lemma to_nat_snoc : forall n b, to_nat (snoc n b) = 2 * (to_nat n) + bit_to_nat O b.
 Proof.
 	intros n.
-	unfold to_nat, foldMap, mapi.
-	cbn [mapi_aux foldM Monoid_nat monoid_plus].
-	enough (He : forall k, foldM Monoid_nat (mapi_aux bit_to_nat (S k) n) =
-		2 * foldM Monoid_nat (mapi_aux bit_to_nat k n)) by
+	unfold to_nat, foldMap.
+	cbn [mapi foldM Monoid_nat monoid_plus].
+	enough (He : forall k, foldM Monoid_nat (mapi bit_to_nat (S k) n) =
+		2 * foldM Monoid_nat (mapi bit_to_nat k n)) by
 		(rewrite He; reflexivity).
 	{	induction n as [|tn HR bn]; intro k.
 	+	reflexivity.
-	+	cbn [mapi_aux foldM monoid_plus Monoid_nat].
+	+	cbn [mapi foldM monoid_plus Monoid_nat].
 		rewrite Nat.mul_add_distr_l, HR.
 		destruct bn; reflexivity.
 	}
@@ -617,7 +617,7 @@ Definition normalize n := foldr ssnoc Ob n.
 Lemma normalize_snoc : forall n b, normalize (snoc n b) = ssnoc (normalize n) b.
 Proof.
 	intros n b.
-	apply fold_snoc.
+	apply foldr_snoc.
 Qed.
 Theorem is_canonical_normalize : forall n, is_canonical (normalize n).
 Proof.
