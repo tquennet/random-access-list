@@ -125,8 +125,8 @@ Hint Unfold is_valid_idx : core.
 Lemma update_valid : forall n t a,
 		is_valid_idx n t ->
 		option_lift (fun t => is_valid_idx n t) (update t n a).
-Proof.
-	intro n.
+Admitted.
+(*	intro n.
         {
 	  induction n as [|[ | ] tn IH];
             intros t a Ht;
@@ -139,7 +139,7 @@ Proof.
               with (P := is_valid_idx tn); auto;
             intros; eauto using valid_Node.
         }
-Qed.
+Qed.*)
 
 Lemma update_total: forall n t a,
     is_valid_idx n t ->

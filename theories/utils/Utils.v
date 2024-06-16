@@ -11,8 +11,11 @@ Record Monoid (S : Type) : Type :=
 Definition Monoid_nat : Monoid nat :=
   {| monoid_plus := Init.Nat.add ; monoid_unit := 0%nat |}.
 
-Definition Monoid_endo {A} : Monoid (A -> A) :=
+Definition Monoid_endol {A} : Monoid (A -> A) :=
   {| monoid_plus := fun f g a => f (g a);
+     monoid_unit := fun a => a |}.
+Definition Monoid_endor {A} : Monoid (A -> A) :=
+  {| monoid_plus := fun f g a => g (f a);
      monoid_unit := fun a => a |}.
 
 Definition Monoid_Prop : Monoid Prop :=
@@ -25,7 +28,7 @@ Arguments monoid_plus {S} m m2.
 
 Section Option.
 
-Context {A : Type} (P : A -> Prop).
+Context {A : Type}.
 
 Definition is_some (o : option A) :=
 	match o with
@@ -49,10 +52,19 @@ Lemma lift_conseq {X}: forall (P Q : X -> Prop)(r: option X),
     option_lift P r -> option_lift Q r.
 Proof. intros; destruct r; simpl; auto. Qed.
 
-Variant option_predicate : option A -> Prop :=
+(*Variant option_predicate : option A -> Prop :=
 	| OP_None : option_predicate None
-	| OP_Some : forall a, P a -> option_predicate (Some a).
+	| OP_Some : forall a, P a -> option_predicate (Some a).*)
 
+
+Lemma lift_map_conseq {X Y} : forall (P : X -> Prop) (Q : Y -> Prop) (r : option X) (f : X -> Y),
+		(forall x, P x -> Q (f x)) ->
+		option_lift P r -> option_lift Q (option_map f r).
+Proof.
+	intros P Q r f Hf H.
+	rewrite lift_map.
+	eapply lift_conseq; [apply Hf|apply H].
+Qed.
 Definition option_default d (o : option A) :=
 	match o with
 	| None => d
