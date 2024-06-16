@@ -208,33 +208,6 @@ Proof.
 		reflexivity.
 	}
 Qed.
-(*
-Proof.
-	intros l H.
-	enough (Ha : forall n, valid n l -> 2 ^ n * BinNat.to_nat (strip l) = size l);
-	  [apply Ha in H; simpl in H; rewrite <- plus_n_O in H; assumption|].
-	clear H.
-	{	induction l as [| b tl HR]; [|destruct b]; intros n H; simpl in *.
-	+	rewrite Nat.mul_0_r.
-		reflexivity.
-	+	inversion_clear H.
-		apply HR in H1 as H.
-		rewrite <- H, Nat.pow_succ_r', (Nat.mul_comm 2), <- Nat.mul_assoc.
-		reflexivity.
-	+	inversion_clear H.
-		apply HR in H1 as H.
-		inversion_clear H0.
-		rewrite <- mult_n_Sm, Nat.add_comm.
-		{	apply f_equal2_plus.
-		+	symmetry.
-			apply CLBT.valid_size.
-			assumption.
-		+	rewrite <- H, Nat.pow_succ_r', (Nat.mul_comm 2), <- Nat.mul_assoc.
-			reflexivity.
-		}
-	}
-Qed.
-*)
 
 (* XXX: delete?
 Lemma is_dvalid_length : forall n dt, is_dvalid n dt -> List.length dt = n.
@@ -247,23 +220,22 @@ Proof.
 Qed.
 *)
 
-Local Lemma is_valid_plug : forall dl l n,
-		is_validP n l -> is_dvalid n dl ->
+Lemma is_valid_plug : forall dl l n,
+		is_valid_k n l -> is_dvalid n dl ->
 		is_valid (plug l dl).
-Admitted.
-(*
 Proof.
-	intro dl.
-	{	induction dl as [|b tdl HR]; intros l n Hl Hdl; simpl in *.
-	+	inversion Hdl.
-		rewrite <-H in Hl.
+	intros dl l n.
+	revert dl l.
+	{	induction n as [|n HR]; intros dl l Hl Hdl.
+	+	inversion_clear Hdl.
 		assumption.
-	+	inversion Hdl.
-		rewrite <-H1 in *.
-		apply (HR _ n0); [|assumption].
-		apply valid_Cons; assumption.
+	+	inversion_clear Hdl as [|? b tdl Hb Htdl].
+		cbn [plug gplug].
+		apply HR; [|assumption].
+		split; [assumption|].
+		destruct b; assumption.
 	}
-Qed. *)
+Qed.
 
 (** [is_canonical] *)
 
@@ -274,7 +246,7 @@ Definition is_canonical (l: t) := BinNat.is_canonical (to_bin l).
 Record is_well_formed (l: t) := {
     wf_valid: is_valid l ;
     wf_canonical : is_canonical l
-  }.
+}.
 
 (** [empty] *)
 
@@ -300,7 +272,7 @@ Definition create_ArrayBit (a: A) (h: nat) (b: BinNat.Bit) :=
   end.
 
 Definition create_spec n a :=
-  Num.mapi (create_ArrayBit a) n.
+	Num.mapi (create_ArrayBit a) O n.
 
 (** This implementation accumulates [t] along so as to be more
 efficient than the one presented in the paper. *)
@@ -312,70 +284,61 @@ Fixpoint create_aux n (t: Tree) :=
 	| snoc tn 1 => snoc (create_aux tn (CLBT.Node t t)) (One t)
 	end.
 
-Functional Scheme create_aux_ind := Induction for create_aux Sort Prop.
-
 Definition create n a := create_aux n (CLBT.singleton a).
 
 Lemma create_meets_spec: forall n a, create n a = create_spec n a.
-Admitted.
-
-Lemma create_valid : forall n a, is_valid (create n a).
-Admitted.
-(*
 Proof.
 	intros n a.
-	set (t := CLBT.singleton a).
-	enough (forall d, CLBT.is_valid d t -> valid d (create_aux n (CLBT.singleton a)));
-		[apply H, CLBT.singleton_valid|].
-	{	functional induction (create_aux n (CLBT.singleton a));
-			intros d Ht; simpl in *.
-	+	apply valid_Nil.
-	+	apply valid_zero.
-		apply IHl.
-		apply CLBT.valid_Node; assumption.
-	+	apply valid_one; [assumption|].
-		apply IHl.
-		apply CLBT.valid_Node; assumption.
+	enough (H : forall k t,
+		t = CLBT.create a k -> create_aux n t = Num.mapi (create_ArrayBit a) k n)
+		by (apply H; reflexivity).
+	{	induction n as [|tn HR bn]; [|destruct bn]; intros k t Ht; simpl.
+	+	reflexivity.
+	+	specialize (HR (S k) (CLBT.Node t t)).
+		rewrite HR; [reflexivity|].
+		rewrite Ht.
+		reflexivity.
+	+	specialize (HR (S k) (CLBT.Node t t)).
+		rewrite HR, Ht; [reflexivity|].
+		rewrite Ht.
+		reflexivity.
 	}
-Qed. *)
+Qed.
+
+Lemma create_valid : forall n a, is_valid (create n a).
+	intros n a.
+	rewrite create_meets_spec.
+	enough (H : forall k, is_valid_k k (Num.mapi (create_ArrayBit a) k n)) by (apply H).
+	{	induction n as [|tn HR bn]; [|destruct bn]; intro k.
+	+	apply I.
+	+	split; [apply HR | apply I].
+	+	split; [apply HR | apply CLBT.create_valid].
+	}
+Qed.
+
+Theorem to_bin_create : forall n a, to_bin (create n a) = n.
+Proof.
+	intros n a.
+	enough (H : forall t, to_bin (create_aux n t) = n) by (apply H).
+	unfold to_bin.
+	{	induction n as [|tn HR bn]; simpl; intro t.
+	+	reflexivity.
+	+	destruct bn; rewrite map_snoc, HR; reflexivity.
+	}
+Qed.
 
 Lemma create_canonical : forall n (a : A),
 		BinNat.is_canonical n ->
 		is_canonical (create n a).
-Admitted.
-(*
 Proof.
-	intros n a Hn.
-	apply RAL.is_canonical_struct_equiv.
-	apply BinNat.is_canonical_struct_equiv in Hn.
-	{	split.
-	+	apply RAL.create_valid.
-	+	unfold RAL.is_precanonical.
-		rewrite create_strip.
-		assumption.
-	}
-Qed. *)
+	intros n a H.
+	unfold is_canonical.
+	rewrite to_bin_create.
+	assumption.
+Qed.
 
 Lemma create_well_formed : forall n a, BinNat.is_canonical n -> is_well_formed (create n a).
 Proof. constructor; auto using create_canonical, create_valid. Qed.
-
-Theorem create_to_bin : forall n (a : A), to_bin (create n a) = n.
-Admitted.
-(*
-Proof.
-	intros n a.
-	unfold RAL.create.
-	{	induction n, (CLBT.singleton a), (RAL.create_aux n (CLBT.singleton a))
-			using RAL.create_aux_ind
-			; simpl in *.
-	+	reflexivity.
-	+	rewrite IHl.
-		reflexivity.
-	+	rewrite IHl.
-		reflexivity.
-	}
-Qed.
-*)
 
 End create.
 
