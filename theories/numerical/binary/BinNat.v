@@ -5,6 +5,8 @@ Import ListNotations.
 
 Require Import numerical.Num.
 
+(*Set Mangle Names.*)
+
 Declare Scope bin_nat_scope.
 Open Scope nat_scope.
 Open Scope bin_nat_scope.
@@ -88,16 +90,17 @@ Theorem decide_is_canonicalb: forall n, is_canonicalb n = true <-> is_canonical 
 		apply is_pos.
 		enough (He: (snoc tn bn) <> Ob -> is_positive (snoc tn bn))
 			by (apply He; discriminate).
-		{	induction (snoc tn bn) as [|t HR b]; intro He; [contradiction|destruct t].
+		{	induction (snoc tn bn) as [|t HR b]; intro He;
+				[contradiction|destruct t as [|t0 a]].
 		+	destruct b; [discriminate|].
 			apply is_positive_Ob1.
 		+	assert (is_positive (snoc t0 a)) by
 				(apply HR; [destruct b; assumption|discriminate]).
 			destruct b; [apply is_positive_snoc0|apply is_positive_snoc1]; assumption.
 		}
-	+	destruct H; [|reflexivity].
+	+	destruct H as [n Hn|]; [|reflexivity].
 		induction n as [|tn HR bn]; [reflexivity|].
-		{	inversion_clear H as[| _tn Htn | _tn Htn].
+		{	inversion_clear Hn as[| _tn Htn | _tn Htn].
 		+	reflexivity.
 		+	apply HR.
 			assumption.
@@ -716,9 +719,10 @@ Proof.
 	+	apply is_Ob.
 	+	apply is_canonical_ssnoc, is_pos.
 		assumption.
-	+	destruct (dec n) as [r|]; simpl in *; [|apply I].
+	+	eapply lift_map_conseq; [|exact HR].
+		intros x Hx.
 		apply is_pos.
-		destruct HR as [r HR|]; [|apply is_positive_Ob1].
+		destruct Hx as [x Hx|]; [|apply is_positive_Ob1].
 		apply is_positive_snoc1.
 		assumption.
 	}
