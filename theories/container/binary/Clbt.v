@@ -163,13 +163,11 @@ Lemma lookup_update_eq : forall n t a,
 		option_bind (update t n a) (fun t => lookup t n) = Some a.
 Proof.
 	intro n.
-	{
-          induction n as [|[|] tn IH];
-	    intros t a Ht;
-            inversion_clear Ht as [|? l r Hl Hr];
-            simpl; auto.
-          all: rewrite bind_map; eauto.
-        }
+	induction n as [|[|] tn IH];
+		intros t a Ht;
+    	inversion_clear Ht as [|? l r Hl Hr];
+    	simpl; auto.
+	all: rewrite bind_map; eauto.
 Qed.
 
 Lemma lookup_update_neq : forall n m t a,
