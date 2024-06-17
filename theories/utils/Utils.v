@@ -42,6 +42,12 @@ Definition option_lift {A} (P : A -> Prop)(a: option A): Prop :=
   | Some a => P a
   end.
 
+Definition option_bind {A B} (o : option A) (f : A -> option B) :=
+	match o with
+	| Some a => f a
+	| None => None
+	end.
+
 Lemma lift_map {X Y}: forall (P : Y -> Prop)(r: option X)(f: X -> Y),
     option_lift P (option_map f r)
     = option_lift (fun t => P (f t)) r.
@@ -56,15 +62,26 @@ Proof. intros; destruct r; simpl; auto. Qed.
 	| OP_None : option_predicate None
 	| OP_Some : forall a, P a -> option_predicate (Some a).*)
 
-
 Lemma lift_map_conseq {X Y} : forall (P : X -> Prop) (Q : Y -> Prop) (r : option X) (f : X -> Y),
 		(forall x, P x -> Q (f x)) ->
-		option_lift P r -> option_lift Q (option_map f r).
+		option_lift P r -> option_lift Q (option_map f r).  
 Proof.
 	intros P Q r f Hf H.
 	rewrite lift_map.
 	eapply lift_conseq; [apply Hf|apply H].
 Qed.
+Lemma lift_bind_conseq {X Y} : forall (P : X -> Prop) (Q : Y -> Prop) (r : option X) (f : X -> option Y),
+		(forall x, P x -> option_lift Q (f x)) ->
+		option_lift P r -> option_lift Q (option_bind r f).  
+Proof.
+	intros P Q r f Hf H.
+	{	destruct r; simpl.
+	+	apply Hf.
+		assumption.
+	+	apply I.
+	}
+Qed.
+
 Definition option_default d (o : option A) :=
 	match o with
 	| None => d
@@ -73,7 +90,7 @@ Definition option_default d (o : option A) :=
 
 End Option.
 
-Section Options.
+(*Section Options.
 
 Context {A B C : Type} (P : B -> Prop) (f g : A -> B) (h : B -> C) (i : A -> A) (j : A -> option B).
 
@@ -126,9 +143,7 @@ Proof.
 	rewrite Hrew.
 	reflexivity.
 Qed.
-End Options.
-
-Definition option_bind {A B}(o: option A)(f : A -> option B) := option_join f o.
+End Options.*)
 
 Lemma bind_fail {X Y}: forall (m: option X),
     option_bind (B := Y) m (fun _ => None) = None.
