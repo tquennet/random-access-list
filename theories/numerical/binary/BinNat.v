@@ -141,6 +141,16 @@ Proof.
 	assumption.
 Qed.
 
+Lemma is_canonical_plug : forall l dl, is_canonical (plug l dl) -> is_canonical l.
+Proof.
+	intros l dl.
+	revert l.
+	{	induction dl as [|bl tl HR]; intros l H.
+	+	assumption.
+	+	apply HR, is_canonical_tl in H.
+		assumption.
+	}
+Qed.
 
 (* XXX: delete?
 Definition not b :=
@@ -187,18 +197,20 @@ Definition bit_to_nat (k: nat)(b: Bit): nat :=
   end.
 
 Definition list_to_nat := fold_right (fun b a => bit_to_nat O b + 2 * a) O.
-Definition to_nat := foldMap Monoid_nat bit_to_nat.
+Definition to_nat := foldMap Monoid_nat bit_to_nat 0.
+Notation ctxt_to_nat n := (to_nat (rev n)).
+
 Lemma to_nat_snoc : forall n b, to_nat (snoc n b) = 2 * (to_nat n) + bit_to_nat O b.
 Proof.
 	intros n.
 	unfold to_nat, foldMap, mapi.
-	cbn [mapi_aux foldM Monoid_nat monoid_plus].
-	enough (He : forall k, foldM Monoid_nat (mapi_aux bit_to_nat (S k) n) =
-		2 * foldM Monoid_nat (mapi_aux bit_to_nat k n)) by
+	cbn [mapi foldM Monoid_nat monoid_plus].
+	enough (He : forall k, foldM Monoid_nat (mapi bit_to_nat (S k) n) =
+		2 * foldM Monoid_nat (mapi bit_to_nat k n)) by
 		(rewrite He; reflexivity).
 	{	induction n as [|tn HR bn]; intro k.
 	+	reflexivity.
-	+	cbn [mapi_aux foldM monoid_plus Monoid_nat].
+	+	cbn [mapi foldM monoid_plus Monoid_nat].
 		rewrite Nat.mul_add_distr_l, HR.
 		destruct bn; reflexivity.
 	}
@@ -239,6 +251,20 @@ Proof.
 	+	rewrite <- app_comm_cons.
 		cbn [list_to_nat fold_right List.length].
 		rewrite HR, Nat.mul_add_distr_l, Nat.add_assoc, Nat.mul_shuffle3.
+		reflexivity.
+	}
+Qed.
+Lemma to_nat_plug : forall n m,
+		to_nat (plug n m) = 2 ^ (List.length m) * to_nat n + ctxt_to_nat m.
+Proof.
+	intros n m.
+	revert n.
+	{	induction m as [|bm tm HR]; intro n; cbn [plug gplug].
+	+	rewrite <- plus_n_O, Nat.mul_1_l.
+		reflexivity.
+	+	rewrite HR, (HR (snoc Ob bm)), to_nat_snoc.
+		rewrite Nat.mul_add_distr_l, Nat.mul_assoc, (Nat.mul_comm _ 2), <- Nat.pow_succ_r',
+			Nat.add_assoc.
 		reflexivity.
 	}
 Qed.
@@ -532,7 +558,7 @@ Proof.
 	destruct n; [contradiction|].
 	reflexivity.
 Qed.
-Lemma to_nat_snocc : forall n b, to_nat (ssnoc n b) = 2 * (to_nat n) + bit_to_nat O b.
+Lemma to_nat_ssnoc : forall n b, to_nat (ssnoc n b) = 2 * (to_nat n) + bit_to_nat O b.
 Proof.
 	intros n b.
 	destruct n; [destruct b; reflexivity|cbn [ssnoc]].
@@ -559,7 +585,7 @@ Definition normalize n := foldr ssnoc Ob n.
 Lemma normalize_snoc : forall n b, normalize (snoc n b) = ssnoc (normalize n) b.
 Proof.
 	intros n b.
-	apply fold_snoc.
+	apply foldr_snoc.
 Qed.
 Theorem is_canonical_normalize : forall n, is_canonical (normalize n).
 Proof.
@@ -579,7 +605,7 @@ Proof.
 	intro n.
 	{	induction n as [|tn HR bn].
 	+	reflexivity.
-	+	rewrite normalize_snoc, to_nat_snoc, <- HR, to_nat_snocc.
+	+	rewrite normalize_snoc, to_nat_snoc, <- HR, to_nat_ssnoc.
 		reflexivity.
 	}
 Qed.
@@ -593,7 +619,7 @@ Fixpoint dec n :=
 	| snoc t 0 => option_map (fun r => snoc r 1) (dec t)
 	end.
 
-(* XXX: REMOVE
+(* XXX: necessary for ral open proof
 Fixpoint dt_dec dn :=
 	match dn with
 	| [] => (false, [])
@@ -703,7 +729,7 @@ Proof.
 		simpl.
 		rewrite <- plus_n_O, <- plus_n_Sm.
 		apply le_n_S, le_n_S, le_0_n.
-	+	rewrite to_nat_snoc, to_nat_snocc.
+	+	rewrite to_nat_snoc, to_nat_ssnoc.
 		cbn [bit_to_nat pow].
 		rewrite <- plus_n_Sm.
 		reflexivity.
@@ -733,7 +759,35 @@ Qed.
 
 Definition splug := gplug ssnoc.
 
-Notation ctxt_to_nat n := (to_nat (rev n)).
+Lemma is_canonical_splug : forall l dl, is_canonical l -> is_canonical (splug l dl).
+Proof.
+	intros l dl.
+	revert l.
+	{	induction dl as [|bl tl HR]; intros l Hl; simpl.
+	+	assumption.
+	+	cbn [splug gplug].
+		apply HR, is_canonical_ssnoc.
+		assumption.
+	}
+Qed.
+
+Lemma to_nat_splug : forall l dl,
+		to_nat (splug l dl) = 2 ^ (List.length dl) * to_nat l + ctxt_to_nat dl.
+Proof.
+	intros l dl.
+	revert l.
+	{	induction dl as [|bl tl HR]; intro l; cbn [splug gplug].
+	+	rewrite <- plus_n_O, Nat.mul_1_l.
+		reflexivity.
+	+	rewrite HR, to_nat_ssnoc, !to_list_to_nat, !to_list_rev.
+		cbn [List.rev].
+		rewrite list_to_nat_app, Nat.mul_add_distr_l, Nat.mul_assoc,
+			(Nat.mul_comm _ 2), <- Nat.pow_succ_r', rev_length,
+			(Nat.mul_comm (2 ^ (List.length tl))), <- Nat.add_assoc,
+			(Nat.add_comm ((bit_to_nat 0 bl) * _)).
+		destruct bl; reflexivity.
+	}
+Qed.
 
 Lemma list_cxt_to_nat : forall n, ctxt_to_nat n = list_to_nat (to_list (rev n)).
 Proof.
@@ -789,10 +843,10 @@ Notation "n >? m" := (gtb n m) : bin_nat_scope.
 
 (*	gérer correctement sub n n *)
 Definition sub n m :=
-	option_map (fun d => splug d.(dec_tn) (0 :: d.(dec_diff))) (gt n m).
+	option_map (fun d => inc (splug d.(dec_tn) (0 :: d.(dec_diff)))) (gt n m).
 
 Notation "n - m" := (sub n m) : bin_nat_scope.
-
+	  
 (* XXX: Delete
 Fixpoint gtb_cont b n m :=
 	match n, m with
@@ -1062,7 +1116,39 @@ Proof.
 Qed.
 
 
-Lemma or_list_eq : forall (b : Bit) l1 l2 H, l1 = l2 \/ H -> b :: l1 = b :: l2 \/ H.
+Lemma sub_canonical : forall n m, is_canonical n -> is_canonical m ->
+		option_lift is_canonical (n - m).
+Proof.
+	intros n m Hn Hm.
+	pose proof (H := gt_is_decomp n m).
+	unfold sub.
+	destruct gt; [|apply I]; simpl.
+	destruct (H _ Hm eq_refl) as [_ Hzip _].
+	rewrite Hzip in Hn.
+	apply is_canonical_plug, is_canonical_tl in Hn.
+	apply is_pos, is_positive_inc, is_canonical_splug.
+	assumption.
+Qed.
+
+Lemma sub_to_nat : forall n m, is_canonical m ->
+		option_lift (fun x => to_nat x = (to_nat n - to_nat m)%nat) (n - m).
+Proof.
+	intros n m Hm.
+	pose proof (H := gt_is_decomp n m).
+	unfold sub.
+	destruct gt as [d|]; [|apply I]; simpl.
+	destruct (H _ Hm eq_refl) as [Hlen Hzip Hval], d as [tl dl diff]; simpl in *.
+	rewrite inc_S, to_nat_splug, <- (Nat.add_sub _ (to_nat m)), list_cxt_to_nat, to_list_rev.
+	cbn [List.rev List.length].
+	rewrite list_to_nat_app, plus_Sn_m, (Nat.add_comm (list_to_nat _)), Nat.add_assoc,
+		<- Nat.add_assoc, plus_n_Sm, <- to_list_rev, <- list_cxt_to_nat, Hval, Nat.mul_0_l,
+		<- plus_n_O.
+	replace (plug (snoc tl 1) dl) with (plug tl (1 :: dl)) in Hzip by reflexivity.
+	rewrite Hzip, (to_nat_plug tl), Hlen.
+	reflexivity.
+Qed.
+
+(*Lemma or_list_eq : forall (b : Bit) l1 l2 H, l1 = l2 \/ H -> b :: l1 = b :: l2 \/ H.
 Proof.
 	intros b l1 l2 H Ht.
 	{	destruct Ht as [Ht|Ht].
@@ -1093,7 +1179,7 @@ Proof.
 	+	apply or_list_eq, HR.
 	}
 Qed.
-
+*)
 Lemma gtb_antireflexive : forall n, n >? n = false.
 Proof.
 	intros n.
