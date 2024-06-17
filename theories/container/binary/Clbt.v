@@ -125,21 +125,15 @@ Hint Unfold is_valid_idx : core.
 Lemma update_valid : forall n t a,
 		is_valid_idx n t ->
 		option_lift (fun t => is_valid_idx n t) (update t n a).
-Admitted.
-(*	intro n.
-        {
-	  induction n as [|[ | ] tn IH];
-            intros t a Ht;
-            inversion_clear Ht as [|? l r Hl Hr];
-            simpl.
-          1: apply valid_Leaf.
-          all:
-	    rewrite lift_map; simpl;
-            eapply lift_conseq
-              with (P := is_valid_idx tn); auto;
-            intros; eauto using valid_Node.
-        }
-Qed.*)
+Proof.
+	intro n.
+    {	induction n as [|bn tn HR]; intros t a Ht;
+		inversion_clear Ht as [|? l r Hl Hr]; simpl.
+	+	apply valid_Leaf.
+	+	destruct bn; (eapply lift_map_conseq, HR; [|assumption]);
+			intros x Hx; apply valid_Node; assumption.
+	}
+Qed.
 
 Lemma update_total: forall n t a,
     is_valid_idx n t ->

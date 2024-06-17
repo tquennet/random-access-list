@@ -145,8 +145,19 @@ Lemma to_bin_length : forall l, Num.length (to_bin l) = Num.length l.
 Proof.
 	apply mapi_length.
 Qed.
+Lemma to_bin_plug : forall l dl, to_bin (plug l dl) = plug (to_bin l) (dto_bin dl).
+Proof.
+	intros l dl.
+	revert l.
+	{	induction dl as [|bl tl HR]; intro l.
+	+	reflexivity.
+	+	cbn [plug gplug].
+		rewrite HR, to_bin_snoc.
+		reflexivity.
+	}
+Qed.
 
-(* XXX: delete? 
+(* XXX: delete?
 Lemma to_bin_zero_inj : forall n l, to_bin l = repeat 0 n -> l = repeat Zero n.
 Proof.
 	intro n.
@@ -287,9 +298,34 @@ Proof.
 	assumption.
 Qed.
 
+Lemma splug_valid : forall l dl k, is_valid_k k l -> is_dvalid k dl -> is_valid (splug l dl).
+Proof.
+	intros l dl.
+	revert l.
+	{	induction dl as [|bl tl HR]; intros l k Hl Hdl; cbn [splug gplug].
+	+	apply is_dvalid_length in Hdl; simpl in Hdl.
+		rewrite <- Hdl in Hl.
+		assumption.
+	+	revert Hl; inversion_clear Hdl as [| k' ? ? Hbl Htl]; intro Hl.
+		apply (HR _ k'); [|assumption].
+		apply ssnoc_valid; assumption.
+	}
+Qed.
+
+Lemma splug_canonical : forall l dl, is_canonical l -> is_canonical (splug l dl).
+Proof.
+	intros l dl.
+	revert l.
+	{	induction dl as [|bl tl HR]; intros l Hl; cbn [splug gplug].
+	+	assumption.
+	+	apply HR, ssnoc_canonical.
+		assumption.
+	}
+Qed.
+
 (** [is_well_formed] *)
 
-Record is_well_formed (l: t) := {
+Record is_well_formed (l: t) := mk_wf {
     wf_valid: is_valid l ;
     wf_canonical : is_canonical l
 }.
@@ -1114,10 +1150,7 @@ Record zipper := mkZip
 	z_idx : BinNat.dt;
 }.
 
-(* XXX: delete? 
-Definition is_zipper l zip :=
-	l = rev_append zip.(zip_dl) (One zip.(zip_tree) :: zip.(zip_tl)).
-*)
+Definition is_zipper l zip := l = plug zip.(z_suffix) (One zip.(z_tree) :: zip.(z_prefix)).
 
 Record is_zvalid (z : zipper) :=
 {
@@ -1193,52 +1226,33 @@ Proof.
 	apply open_borrow_valid; [assumption|apply valid_DNil].
 Qed.
 
-(*
 
-Lemma open_decomp_aux : forall l n dbn dral zip,
-		(open_aux l n dbn dral = Some zip ->
-		(rev_append dral l) = rev_append (zip.(zip_dl)) (One zip.(zip_tree) :: zip.(zip_tl)))
-		/\ (open_borrow l n dbn dral = Some zip ->
-		(rev_append dral l) = rev_append (zip.(zip_dl)) (One zip.(zip_tree) :: zip.(zip_tl))).
+
+Lemma open_zipper_aux : forall l n dbn dl,
+		option_lift (is_zipper (plug l dl)) (open_aux l n dbn dl)
+with open_zipper_borrow : forall l n dbn dl,
+		option_lift (is_zipper (plug l dl)) (open_borrow l n dbn dl).
 Proof.
-	intro l.
-	{	induction l as [|bl tl HR]; [|destruct bl]; intros n dbn dral zip;
-			(destruct n as [|bn tn]; [|destruct bn]); simpl in *;
-			(split; intro H); try discriminate.
-	+	apply HR in H.
-		assumption.
-	+	apply HR in H.
-		assumption.
-	+	apply HR in H.
-		assumption.
-	+	apply HR in H.
-		assumption.
-	+	apply HR in H.
-		assumption.
-	+	inversion_clear H.
-		reflexivity.
-	+	apply HR in H.
-		assumption.
-	+	apply HR in H.
-		assumption.
-	+	{	destruct tn.
-		+	inversion_clear H.
-			reflexivity.
-		+	apply HR in H.
-			assumption.
-		}
-	+	apply HR in H.
-		assumption.
-	}
+	all: intro l; destruct l as [|tl bl]; [|destruct bl as [|t]]; intros n dbn dl;
+		(destruct n as [|tn bn]; [|destruct bn]); try apply I; simpl in *.
+	+	apply (open_zipper_aux tl).
+	+	apply (open_zipper_borrow tl).
+	+	destruct tn; apply (open_zipper_aux tl).
+	+	destruct tn; [reflexivity|apply (open_zipper_aux tl)].
+	+	apply (open_zipper_borrow tl).
+	+	apply (open_zipper_borrow tl).
+	+	apply (open_zipper_borrow tl).
+	+	reflexivity.
+	+	apply (open_zipper_aux tl).
+	+	apply (open_zipper_borrow tl).
 Qed.
-Lemma open_zipper : forall l n zip,
-	open l n = Some zip ->
-	is_zipper l zip.
+Lemma open_zipper : forall l n, option_lift (is_zipper l) (open l n).
 Proof.
-	intros l n zip H.
-	apply open_decomp_aux in H.
-	assumption.
+	intros l n.
+	apply open_zipper_borrow.
 Qed.
+
+(*
 
 Lemma open_empty : forall n, open empty n = None.
 Proof.
@@ -1560,28 +1574,6 @@ Definition lookup l n :=
       CLBT.lookup t idx
   | _ => None
   end.
-
-(*
-Theorem lookup_none : forall (l : @RAL.t A) n,
-		RAL.is_canonical l -> BinNat.is_canonical n ->
-		(RAL.strip l) >? n = false -> RAL.lookup l n = None.
-Proof.
-	intros l n Hl Hn H.
-	unfold RAL.lookup in *.
-	apply BinNat.is_canonical_struct_equiv in Hn.
-	apply RAL.is_canonical_struct_equiv in Hl.
-	destruct Hl as [_ Hl].
-	pose proof (Hgs := BinNat.gtb_decomp_equiv (RAL.strip l) n Hl Hn).
-	pose proof (Hco := open_gtb l n).
-	{	destruct RAL.open, (BinNat.gtb_decomp (RAL.strip l) n).
-	+	rewrite H in Hgs.
-		discriminate.
-	+	discriminate.
-	+	discriminate.
-	+	reflexivity.
-	}
-Qed.
-*)
 End lookup.
 
 (** [update] *)
@@ -1589,102 +1581,54 @@ End lookup.
 Section update.
 
 Definition update l n a :=
-	match open l n with
-	| Some z =>
-            option_bind (CLBT.update z.(z_tree) z.(z_idx) a) (fun t' =>
-	    Some (plug (snoc z.(z_suffix) (One t')) z.(z_prefix)))
-	| _ => None
-	end.
+	option_bind (open l n) (fun z => option_bind (CLBT.update z.(z_tree) z.(z_idx) a)
+		(fun t => Some (plug (snoc z.(z_suffix) (One t)) z.(z_prefix)))).
 
 Lemma is_valid_update : forall l n a, is_valid l -> option_lift is_valid (update l n a).
-Admitted.
-(*
 Proof.
-	intros l n a H.
+	intros l n a Hl.
 	unfold update.
-	pose proof (Hvalid := open_valid l n).
-	destruct open as [zip|]; [|assumption].
-	destruct (Hvalid zip) as [Htl Hdl Ht Hnb]; [assumption|reflexivity|].
-	destruct zip as [tl dl t nb]; simpl in *.
-	pose proof (Hop := CLBT.make_zip_valid _ _ Ht).
-	rewrite <- Hnb in Hop.
-	apply CLBT.open_valid in Hop.
-	rewrite Hnb in Hop.
-	rewrite <- BinNat.complement_length in Hnb.
-	destruct CLBT.open as [ot odt], Hop as [Hot Hodt].
-	apply (plug_valid _ _ (length dl)); [|assumption].
-	apply valid_one; [|assumption].
-	rewrite <- Hnb.
-	apply CLBT.update_valid.
-	rewrite Hnb.
+	pose proof (Hv := open_valid l n Hl).
+	eapply lift_bind_conseq, Hv.
+	intros z Hz.
+	destruct z as [tl dl t idx], Hz as [Htl Hdl Ht Hlen]; simpl in *.
+	eapply lift_bind_conseq, CLBT.update_valid; [|assumption]; simpl.
+	intros t' Ht'.
+	apply (is_valid_plug _ _ (List.length idx)); [split|]; assumption.
+Qed.
+
+Lemma is_update_to_bin : forall l n a,
+		option_lift (fun u => to_bin u = to_bin l) (update l n a).
+Proof.
+	intros l n a.
+	unfold update.
+	pose proof (H := open_zipper l n).
+	eapply lift_bind_conseq, H.
+	intros z Hz; unfold is_zipper in Hz.
+	apply lift_bind; intro t; simpl; cbn [plug gplug] in Hz.
+	apply (f_equal to_bin) in Hz.
+	rewrite Hz, !to_bin_plug, !to_bin_snoc; simpl in *.
+	reflexivity.
+Qed.
+Lemma is_canonical_update : forall l n a,
+		is_canonical l -> option_lift is_canonical (update l n a).
+Proof.
+	intros l n a Hl.
+	pose proof (H := is_update_to_bin l n a).
+	eapply lift_conseq, H; simpl.
+	intros x Hx.
+	unfold is_canonical.
+	rewrite Hx.
 	assumption.
 Qed.
-*)
-
-Lemma is_canonical_update : forall l n a, is_canonical l -> option_lift is_canonical (update l n a).
-Admitted.
-(*
-Proof.
-	intros l n a Hl Hn.
-	apply RAL.canonical_valid in Hl as Hvl.
-	apply strip_canonical in Hl as Hsl.
-	apply BinNat.is_canonical_struct_equiv in Hsl.
-	apply RAL.is_canonical_struct_equiv.
-	split; [apply RAL.update_valid; assumption|].
-	unfold RAL.is_precanonical.
-	rewrite update_strip; assumption.
-Qed. *)
 
 Theorem is_well_formed_update : forall l n a, is_well_formed l -> option_lift is_well_formed (update l n a).
-Admitted.
-
-Theorem update_to_bin : forall l n a,
-		is_well_formed l -> BinNat.is_canonical n ->
-		option_lift (fun l' => to_bin l' = to_bin l) (update l n a).
-Admitted.
-(*
 Proof.
-	intros l n a Hl Hn.
-	unfold RAL.update.
-	apply BinNat.is_canonical_struct_equiv in Hn.
-	apply strip_canonical in Hl as Hsl.
-	pose proof (Hoc := open_gtb l n).
-	pose proof (Hcomp := BinNat.gtb_decomp_is_decomp (RAL.strip l) n).
-	{	destruct RAL.open as [zip|], BinNat.gtb_decomp as [decomp|];
-			try discriminate.
-	+	specialize (Hcomp decomp Hn eq_refl).
-		destruct zip as [tl dl t nb], decomp as [rtn rdn ran]; simpl in *.
-		destruct Hcomp as [Hln Hz Hval].
-		rewrite plug_strip, Hz.
-		inversion_clear Hoc.
-		reflexivity.
-	+	reflexivity.
-	}
+	intros l n a H.
+	pose proof (Hv := is_valid_update l n a (wf_valid _ H)).
+	pose proof (Hc := is_canonical_update l n a (wf_canonical _ H)).
+	destruct update; [split; assumption|apply I].
 Qed.
-*)
-
-Theorem update_failure : forall l n (a : A),
-		is_well_formed l -> BinNat.is_canonical n ->
-		(to_bin l) >? n = false -> update l n a = None.
-Admitted.
-(*
-Proof.
-	intros l n a Hl Hn H.
-	unfold RAL.update in *.
-	apply BinNat.is_canonical_struct_equiv in Hn.
-	apply RAL.is_canonical_struct_equiv in Hl.
-	destruct Hl as [_ Hl].
-	pose proof (Hgs := BinNat.gtb_decomp_equiv (RAL.strip l) n Hl Hn).
-	pose proof (Hco := open_gtb l n).
-	{	destruct RAL.open, (BinNat.gtb_decomp (RAL.strip l) n).
-	+	rewrite H in Hgs.
-		discriminate.
-	+	discriminate.
-	+	discriminate.
-	+	reflexivity.
-	}
-Qed.
-*)
 
 End update.
 
@@ -1705,17 +1649,16 @@ Fixpoint scatter t dn: option (A * list (ArrayBit Tree)) :=
 	end.
 
 Definition drop l n :=
-	match open l n with
-	| Some z =>
-            option_bind (scatter z.(z_tree) z.(z_idx)) (fun '(a, p) =>
-            Some (cons a (plug (snoc z.(z_suffix) Zero) p)))
-	| _ => None
-	end.
+	option_bind (open l n) (fun z => option_bind (scatter z.(z_tree) z.(z_idx))
+		(fun '(a, p) => Some (cons a (splug (snoc z.(z_suffix) Zero) p)))).
 
 Lemma drop_canonical : forall l n,
 		is_canonical l -> option_lift is_canonical (drop l n).
 Admitted.
-(*
+(*Proof.
+	intros l n Hl.
+	unfold drop.
+	apply lift_bind_conseq.
 Proof.
 	intros l n Hl.
 	apply is_canonical_struct_equiv in Hl.
@@ -1742,31 +1685,6 @@ Proof.
 		destruct scatter as [st sr].
 		apply precanonical_cons_tree, Hs, canonical_safe_zero.
 		assumption.
-	}
-Qed.
-*)
-
-(* XXX: delete
-Definition safe_zero l : t :=
-	match l with
-	| [] => []
-	| _ => Zero :: l
-	end.
-Lemma valid_safe_zero : forall l n, valid (S n) l -> valid n (safe_zero l).
-Proof.
-	intros l n H.
-	{	destruct l.
-	+	apply valid_Nil.
-	+	apply valid_zero.
-		assumption.
-	}
-Qed.
-Lemma canonical_safe_zero : forall l, is_precanonical l -> is_precanonical (safe_zero l).
-Proof.
-	intros l H.
-	{	destruct l as [|bl tl].
-	+	reflexivity.
-	+	assumption.
 	}
 Qed.
 *)
