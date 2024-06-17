@@ -82,6 +82,14 @@ Proof.
 	}
 Qed.
 
+Lemma lift_bind {X Y} : forall (Q : Y -> Prop) (r : option X) (f : X -> option Y),
+		(forall x, option_lift Q (f x)) -> option_lift Q (option_bind r f).
+Proof.
+	intros Q r f Hf.
+	apply (lift_bind_conseq (fun _ => True)); [|destruct r; apply I].
+	intros x _.
+	apply Hf.
+Qed.
 Definition option_default d (o : option A) :=
 	match o with
 	| None => d
