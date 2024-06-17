@@ -23,6 +23,14 @@ Fixpoint length {A}(n : Num A): nat :=
   | snoc n _ => S (length n)
   end.
 
+Lemma length_0_iff_Ob {A} : forall (n : Num A), length n = O <-> n = Ob.
+Proof.
+	intro n.
+	{	split; intro H.
+	+	destruct n; [reflexivity|discriminate].
+	+	rewrite H; reflexivity.
+	}
+Qed.
 Section mapi.
 
 Context {A B : Type} (f: nat -> A -> B).
