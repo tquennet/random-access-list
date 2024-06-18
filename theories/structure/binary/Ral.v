@@ -338,6 +338,26 @@ Qed.
 
 (** [is_well_formed] *)
 
+Lemma plug_eq_splug : forall l dl, is_canonical (plug l dl) -> plug l dl = splug l dl.
+Proof.
+	{	assert (Ha : forall dl l, l <> Ob -> plug l dl = splug l dl).
+	+	intro dl.
+		{	induction dl as [|bl tl HR]; intros l H.
+		+	reflexivity.
+		+	destruct l; [contradiction|].
+			destruct bl; cbn [plug splug gplug]; (rewrite HR; [reflexivity|discriminate]).
+		}
+	+	intros l dl H.
+		destruct l as [|bl tl]; [|apply Ha; discriminate].
+		destruct dl as [|bl tl]; [reflexivity|].
+		destruct bl; [|apply (Ha tl); discriminate].
+		unfold is_canonical in H.
+		rewrite (to_bin_plug Ob) in H; simpl in H.
+		apply BinNat.non_canonical_rev in H.
+		contradiction.
+	}
+Qed.
+
 Record is_well_formed (l: t) := mk_wf {
     wf_valid: is_valid l ;
     wf_canonical : is_canonical l
@@ -1340,7 +1360,7 @@ Proof.
 	apply (is_valid_plug _ _ (List.length idx)); [split|]; assumption.
 Qed.
 
-Lemma is_update_to_bin : forall l n a,
+Lemma update_to_bin : forall l n a,
 		option_lift (fun u => to_bin u = to_bin l) (update l n a).
 Proof.
 	intros l n a.
@@ -1357,7 +1377,7 @@ Lemma is_canonical_update : forall l n a,
 		is_canonical l -> option_lift is_canonical (update l n a).
 Proof.
 	intros l n a Hl.
-	pose proof (H := is_update_to_bin l n a).
+	pose proof (H := update_to_bin l n a).
 	eapply lift_conseq, H; simpl.
 	intros x Hx.
 	unfold is_canonical.

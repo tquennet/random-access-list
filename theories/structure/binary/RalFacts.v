@@ -1,10 +1,13 @@
-Require Import numerical.binary.BinNat structure.binary.Ral utils.Utils Lists.List.
+Require Import numerical.Num numerical.binary.BinNat structure.binary.Ral
+	utils.Utils Lists.List.
 Import ListNotations.
 Import BinNat.Notations.
 
 Section Ral.
 
 Context {A : Type}.
+Notation RAL := (@Ral.t A).
+
 (*
 
 Lemma open_empty : forall n, open empty n = None.
@@ -68,32 +71,31 @@ Proof.
 		rewrite Nat.sub_diag.
 		split; reflexivity.
 	}
-Qed.
+Qed.*)
 
-Lemma open_zero : forall l zip,
-		open l [] = Some zip ->
-		zip.(zip_dl) = repeat Zero (length zip.(zip_dl)) /\ zip.(zip_nb) = repeat 1 (length zip.(zip_dl)).
+Notation Zero := (@Zero (@CLBT.t A)).
+
+Lemma open_zero : forall l,
+		option_lift (fun zip =>
+		zip.(z_prefix _) = repeat Zero (length zip.(z_prefix _))
+		/\ zip.(z_idx _) = repeat 1 (length zip.(z_idx _))) (open l Ob).
 Proof.
-	enough (Hob : forall l zip n, open_borrow l [] (repeat 1 n) (repeat Zero n) = Some zip ->
-					   zip.(zip_dl) = repeat Zero (length zip.(zip_dl)) /\ zip.(zip_nb) = repeat 1 (length zip.(zip_dl)))
-		by (intros l zip H; apply (Hob _ _ O) in H; assumption).
+	
+	enough (Hob : forall l n,
+		option_lift (fun zip =>
+		zip.(z_prefix _) = repeat Zero (length zip.(z_prefix _))
+		/\ zip.(z_idx _) = repeat 1 (length zip.(z_idx _)))
+		(open_borrow l Ob (repeat 1 n) (repeat Zero n)))
+		by (intros l; apply (Hob l O)).
 	intro l.
-	{	induction l as [|bl tl HR]; [|destruct bl]; intros zip n H; simpl in *.
-	+	discriminate.
-	+	apply (HR _ (S n)).
-		assumption.
-	+	inversion_clear H; simpl.
-		split; rewrite repeat_length; reflexivity.
+	{	induction l as [|tl HR bl]; [|destruct bl]; intros n; simpl in *.
+	+	apply I.
+	+	apply (HR (S n)).
+	+	split; rewrite repeat_length; reflexivity.
 	}
 Qed.
 
-Definition dec_zip zip :=
-	match BinNat.dt_dec zip.(zip_nb) with
-	| (false, r) => open_borrow zip.(zip_tl) [] (1 :: r)
-									   (One zip.(zip_tree) :: zip.(zip_dl))
-	| (true, r) => Some (mkZip zip.(zip_tl) zip.(zip_dl) zip.(zip_tree) r)
-	end.
-
+(*
 Lemma open_aux_borrow_inc : forall l n dbn dral,
 		BinNat.is_canonical_struct n ->
 		open_aux l (BinNat.inc n) dbn dral = open_borrow l n dbn dral.
@@ -268,8 +270,6 @@ Qed.
 
 Section open.
 
-Notation RAL := (@Ral.t A).
-
 Lemma open_aux_borrow_inc : forall (l : RAL) n dbn dl,
 		BinNat.is_canonical n ->
 		open_aux l (BinNat.inc n) dbn dl = open_borrow l n dbn dl.
@@ -418,6 +418,9 @@ Proof.
 Qed.
 
 End open.
+
+Section drop.
+
 (*
 Lemma scatter_lookup : forall dn t tl,
 		CLBT.is_valid (length dn) t ->
@@ -455,8 +458,8 @@ Qed.
 
 Lemma scatter_cons_zero_aux : forall n k t l r,
 		CLBT.is_valid n t ->
-		cons_tree t l = (repeat Zero k) ++ r ->
-		(uncurry cons_tree) (scatter t l (repeat 1 n)) = (repeat Zero (n + k)) ++ r.
+		Ral.cons_tree t l = (repeat Zero k) ++ r ->
+		(uncurry Ral.cons_tree) (scatter t l (repeat 1 n)) = (repeat Zero (n + k)) ++ r.
 Proof.
 	intros n.
 	{	induction n as [|n HR]; intros k t l r Ht; inversion_clear Ht; intro Hc; simpl in *.
@@ -516,32 +519,63 @@ Proof.
 			rewrite cons_uncons, Hzs, Hl; [reflexivity|discriminate|assumption].
 		}
 	}
+Qed.*)
+
+Lemma scatter_cons_zero_aux : forall n l l' t,
+	  CLBT.is_valid n t ->
+	  Ral.cons_tree t l' = l ->
+		Some (splug l (repeat Zero n)) =
+			option_map (fun '(a, r) => Ral.cons a (splug l' r)) (scatter t (repeat 1 n)).
+Proof.
+	intros n.
+	{	induction n as [|n HR]; intros l l' t Ht;
+			inversion_clear Ht as [a|? tl tr Hl Hr];
+			intro H; cbn [splug gplug]; simpl.
+	+	rewrite <- H.
+		reflexivity.
+	+	assert (Hc : Ral.cons_tree tr (snoc l' (One _ tl)) = (snoc l Zero))
+			by (simpl; rewrite H; reflexivity).
+		specialize (HR (snoc l Zero) (snoc l' (One _ tl)) tr Hr Hc).
+		destruct scatter as [p|]; [|discriminate].
+		destruct p as [a r]; simpl in *.
+		destruct l; [destruct l' as [|l' bl]; [|destruct bl]; discriminate|].
+		destruct l'; assumption.
+	}
 Qed.
 
-Lemma drop_zero : forall l,
-		is_canonical l ->
-		drop l [] = l.
+Lemma scatter_cons_zero : forall l n t,
+		CLBT.is_valid n t ->
+		Some (splug l (One _ t :: repeat Zero n)) =
+		option_map (fun '(a, r) => Ral.cons a (splug l (Zero :: r)))
+		(scatter t (repeat 1 n)).
+Proof.
+	intros l n t Ht.
+	apply scatter_cons_zero_aux; [assumption|].
+	destruct l; reflexivity.
+Qed.
+
+Lemma drop_zero : forall (l : RAL),
+		is_well_formed l ->
+		option_lift (eq l) (drop l Ob).
 Proof.
 	intros l Hl.
-	apply is_canonical_struct_equiv in Hl as Hsl.
-	destruct Hsl as [_ Hsl].
 	unfold drop.
 	pose proof (Hoz := open_zero l).
-	pose proof (Hv := open_valid l []).
-	pose proof (Hozn := open_zero_None _ Hsl).
-	pose proof (Hz := open_zipper l []).
-	destruct open as [zip|]; [|rewrite Hozn; reflexivity].
-	specialize (Hoz zip eq_refl).
-	specialize (Hv zip (canonical_valid _ Hl) eq_refl).
-	specialize (Hz zip eq_refl).
-	destruct Hv as [_ _ Ht _].
-	unfold is_zipper in Hz.
-	destruct zip as [tl dl t dn], Hoz as [Hdl Hnb]; simpl in *.
-	pose proof (Hsc := scatter_cons_zero (length dl) t tl Ht).
-	rewrite Hnb.
-	destruct scatter as [st sl]; simpl in *.
-	rewrite <- rev_repeat, <- Hdl, <- rev_append_rev, <- Hz in Hsc.
-	assumption.
+	pose proof (Hv := open_valid l Ob (wf_valid _ Hl)).
+	pose proof (Hz := open_zipper l Ob).
+
+	destruct open as [z|]; [|apply I]; simpl.
+	destruct z as [tl t dl idx], Hv as [_ _ Ht Hlen]; simpl in *.
+	destruct Hoz as [Hodl Hoidx].
+
+	pose proof (scatter_cons_zero tl (List.length idx) t Ht).
+	rewrite Hoidx.
+	destruct scatter as [p|]; [|discriminate].
+	destruct p as [a r]; simpl in *.
+	inversion_clear H.
+	unfold is_zipper in Hz; simpl in Hz.
+	rewrite <- Hlen, <- Hodl, <- plug_eq_splug; [assumption|].
+	rewrite <- Hz; exact (wf_canonical _ Hl).
 Qed.
 
 Lemma drop_inc : forall l n,
@@ -738,13 +772,62 @@ Qed.
 
 Section Theory.
 
-Theorem lookup_update_eq : forall l n a,
+Lemma plug_eq : forall (l0 r0 : RAL) l1 r1 t t',
+		length l1 = length r1 -> Num.plug l0 (t :: l1) = Num.plug r0 (t' :: r1) ->
+		t = t'.
+Proof.
+	intros l0 r0 l1 r1 t t' Hl H.
+	cbn [Num.plug Num.gplug] in H.
+	apply (f_equal Num.to_list) in H.
+	rewrite !Num.to_list_plug, !rev_append_rev, !Num.to_list_snoc in H.
+	apply (f_equal (fun l => nth (length (rev l1)) l t)) in H.
+	rewrite nth_middle, rev_length, Hl, <- rev_length, nth_middle in H.
+	assumption.
+Qed.
+Theorem lookup_update_eq : forall (l : RAL) n a,
 		is_well_formed l ->
-                BinNat.is_canonical n ->
-		(to_bin l) >? n = true ->
-		option_bind (update l n a) (fun l => lookup l n)
-                = Some a.
-Admitted.
+		BinNat.is_canonical n ->
+		to_bin l >? n = true ->
+		Some a = (option_bind (update l n a) (fun l => lookup l n)).
+Proof.
+	intros l n a Hl Hn H.
+
+	pose proof (Hutb := update_to_bin l n a).
+	
+	unfold update, lookup, gtb in *.
+
+	pose proof (Hu := open_gt l n).
+	pose proof (Hvu := open_valid l n (wf_valid _ Hl)).
+	pose proof (Hzu := open_zipper l n).
+	rewrite <- Hu in H.
+
+	destruct (open l n) as [zu|]; [|discriminate].
+	destruct zu as [utl ut udl uidx], Hvu as [_ _ Hut _]; simpl in *.
+	destruct (CLBT.update_total _ _ a Hut) as [ux Hux].
+	rewrite Hux in *; simpl in *.
+	
+	pose proof (Hlook := open_gt (Num.plug (Num.snoc utl (One CLBT.t ux)) udl) n).
+	pose proof (Hzlook := open_zipper (Num.plug (Num.snoc utl (One CLBT.t ux)) udl) n).
+
+	rewrite Hutb, <- Hu in Hlook.
+	
+	destruct open as [zl|]; [|discriminate].
+	destruct zl as [ltl lt ldl lidx]; simpl in *.
+
+	unfold is_zipper in *; simpl in *.
+
+	inversion Hlook as [[Htn Hdn Hdiff]].
+	apply (f_equal (@length (BinNat.Bit))) in Hdn.
+	unfold dto_bin in Hdn; rewrite !map_length in Hdn.
+
+	apply plug_eq in Hzlook; [|symmetry; assumption].
+	inversion Hzlook as [Ht]; rewrite <- Ht.
+
+	pose proof (Hlu := CLBT.lookup_update_eq _ _ a Hut).
+	rewrite Hux in Hlu; simpl in Hlu.
+	rewrite Hlu.
+	reflexivity.
+Qed.
 (*
 Proof.
 	intros l n a Hl Hn H.

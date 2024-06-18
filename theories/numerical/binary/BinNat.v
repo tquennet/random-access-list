@@ -200,6 +200,22 @@ Proof.
 	assumption.
 Qed.
 
+Lemma non_canonical_rev : forall dl, ~ is_canonical (rev (0 :: dl)).
+Proof.
+	intros dl.
+	{	induction dl as [|bl tl HR] using rev_ind; intro H.
+	+	inversion_clear H as [? Hp|]; inversion_clear Hp as [|? H|]; inversion_clear H.
+	+	rewrite app_comm_cons, rev_snoc in H.
+		inversion_clear H as [? Hp|].
+		{	destruct tl as [|bl2 tl _] using rev_ind.
+		+	inversion_clear Hp as [|? H|? H]; inversion_clear H as [| |? Hp];
+			inversion_clear Hp.
+		+	apply HR, is_pos.
+			rewrite app_comm_cons, rev_snoc in *.
+			inversion_clear Hp as [|? H|? H]; assumption.
+		}
+	}
+Qed.
 Lemma is_canonical_plug : forall l dl, is_canonical (plug l dl) -> is_canonical l.
 Proof.
 	intros l dl.
@@ -212,6 +228,7 @@ Proof.
 Qed.
 
 (* XXX: delete?
+
 Definition not b :=
 	match b with
 	| 0 => 1
