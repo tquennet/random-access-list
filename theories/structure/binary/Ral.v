@@ -1203,6 +1203,12 @@ with open_borrow (l : t) (n : BinNat.t) (dbn : BinNat.dt) (dral : dt) :=
 
 Definition open l n := open_borrow l n [] [].
 
+Definition dec_zip zip :=
+	match BinNat.dt_dec zip.(z_idx) with
+	| (false, r) => open_borrow zip.(z_suffix) Ob (1 :: r)
+									   (One zip.(z_tree) :: zip.(z_prefix))
+	| (true, r) => Some (mkZip zip.(z_suffix) zip.(z_tree) zip.(z_prefix) r)
+	end.
 
 Lemma open_aux_valid : forall (l : t) n dbn dl,
 		is_valid_k (List.length dbn) l -> is_dvalid (List.length dbn) dl ->
@@ -1298,21 +1304,6 @@ Proof.
 	intros l n.
 	apply open_gt_borrow.
 Qed.
-
-
-(* XXX: delete?
-
-Lemma plug_strip : forall dl (l : @RAL.t A),
-	  RAL.strip (RAL.plug l dl) = rev_append (RAL.strip dl) (RAL.strip l).
-Proof.
-	intro dl.
-	{	induction dl as [|bl tdl HR]; [|destruct bl]; intro l; simpl.
-	+	reflexivity.
-	+	apply HR.
-	+	apply HR.
-	}
-Qed.
-*)
 
 End open.
 

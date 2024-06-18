@@ -242,13 +242,6 @@ Qed.*)
 
 (** [to_nat] *)
 
-(*Fixpoint to_nat_rec n : nat :=
-	match n with
-	| Ob => O
-	| snoc t 0 => 2 * (to_nat_rec t)
-	| snoc t 1 => S (2 * to_nat_rec t)
-	end.*)
-
 Definition bit_to_nat (k: nat)(b: Bit): nat :=
   match b with
   | 0 => 0%nat
@@ -677,7 +670,7 @@ Fixpoint dec n :=
 	| snoc t 0 => option_map (fun r => snoc r 1) (dec t)
 	end.
 
-(* XXX: necessary for ral open proof
+(* necessary for ral facts open proof *)
 Fixpoint dt_dec dn :=
 	match dn with
 	| [] => (false, [])
@@ -690,7 +683,7 @@ Fixpoint dt_dec dn :=
 	end.
 
 
-Lemma dt_dec_length : forall dn dd b, dt_dec dn = (b, dd) -> length dn = length dd.
+Lemma dt_dec_length : forall dn dd b, dt_dec dn = (b, dd) -> List.length dn = List.length dd.
 Proof.
 	intro dn.
 	{	induction dn as [|bn tn HR]; [|destruct bn]; intros dd b H; simpl in *.
@@ -705,7 +698,7 @@ Qed.
 
 Lemma dt_dec_zero : forall dn dd,
 		dt_dec dn = (false, dd) ->
-		dn = repeat 0 (length dn) /\ dd = repeat 1 (length dd).
+		dn = repeat 0 (List.length dn) /\ dd = repeat 1 (List.length dd).
 Proof.
 	intro dn.
 	{	induction dn as [|bn tn HR]; [|destruct bn]; intros dd H; simpl in *.
@@ -718,7 +711,7 @@ Proof.
 		split; reflexivity.
 	+	destruct dt_dec as [b tdd], b; discriminate.
 	}
-Qed. *)
+Qed.
 
 Lemma dec_inc : forall (n : t),
 	is_canonical n -> dec (inc n) = Some n.
