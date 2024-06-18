@@ -180,6 +180,24 @@ Proof.
 		assumption.
 	}
 Qed.
+
+Lemma plug_snoc : forall (dm : list A) m b, plug m (dm ++ (cons b nil)) = snoc (plug m dm) b.
+Proof.
+	intro dm.
+	{	induction dm as [|bm tm HR]; intros m b; simpl.
+	+	reflexivity.
+	+	cbn [rev gplug].
+		rewrite <- HR.
+		reflexivity.
+	}
+Qed.
+
+Lemma rev_snoc : forall (dm : list A) b, rev (dm ++ (cons b nil)) = snoc (rev dm) b.
+Proof.
+	intros dm b.
+	apply plug_snoc.
+Qed.
+
 End to_list.
 
 (*
@@ -218,17 +236,6 @@ Proof.
 		reflexivity.
 	+	cbn [plug gplug].
 		rewrite (HR .
-	}
-Qed.
-Lemma rev_app : forall (dn dm : list A), app (rev dn) (rev dm) = rev (dn ++ dm).
-Proof.
-	intros dn.
-	{	induction dn as [|bn tn HR]; intro dm; simpl.
-	+	rewrite app_Ob_l.
-		reflexivity.
-	+	cbn [rev gplug].
-		rewrite <- plug_app.
-		simpl.
 	}
 Qed.
 
