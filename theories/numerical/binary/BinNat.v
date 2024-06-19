@@ -111,17 +111,6 @@ Theorem decide_is_canonicalb: forall n, is_canonicalb n = true <-> is_canonical 
 	}
 Qed.
 
-(*
-
-Lemma is_canonicalb_snoc : forall b0 b1 n,
-	is_canonicalb (snoc n b1) = true -> is_canonicalb (snoc (snoc n b1) b0) = true.
-Proof.
-	intros b0 b1 n H.
-	destruct b0; assumption.
-Qed.
-
-*)
-
 Lemma is_positive_tl : forall b n, is_positive (snoc n b) -> is_canonical n.
 Proof.
 	intros b n H.
@@ -167,36 +156,6 @@ Proof.
 		assumption.
 	}
 Qed.
-
-(* XXX: delete?
-
-Definition not b :=
-	match b with
-	| 0 => 1
-	| 1 => 0
-	end.
-
-Definition complement := mapi (fun _ => not).
-Lemma complement_length : forall n,
-		length (complement n) = length n.
-Proof.
-	intros n.
-	apply mapi_length.
-Qed.
-Lemma complement_inj : forall n m,
-		complement n = complement m -> n = m.
-Admitted.
-(*
-Proof.
-	intro n.
-	{	induction n as [|bn tn HR]; intros m H; destruct m as [|bm tm];
-			[|discriminate..|]; simpl in *.
-	+	reflexivity.
-	+	inversion H.
-		destruct bn, bm; [|discriminate..|]; f_equal; apply HR; assumption.
-	}
-Qed.*)
-*)
 
 (** [to_nat] *)
 
@@ -419,140 +378,6 @@ Proof.
 	}
 Qed.
 
-
-(*
-Lemma inc_decomp : forall (n : t),
-	exists b tn, snoc tn b = inc n.
-Admitted.
-(*
-Proof.
-	intros n.
-	{	destruct n as [|b tn]; [|destruct b].
-	+	exists 1, Ob; reflexivity.
-	+	exists 1, tn; reflexivity.
-	+	exists 0, (inc tn); reflexivity.
-	}
-Qed.
-*)
-
-Lemma inc_non_empty : forall n, inc n <> Ob.
-Proof.
-	intro n.
-	pose (H := inc_decomp n).
-	destruct H as [b H], H as [t H].
-	rewrite <- H.
-	discriminate.
-Qed.
-*)
-
-(*
-Lemma is_canonical_inc_struct : forall (n : t),
-	is_canonical_struct n ->
-	is_canonical_struct (inc n).
-Admitted.
-(*
-Proof.
-	intros n H.
-	{	functional induction (inc n).
-	+	reflexivity.
-	+	destruct t0; [discriminate|].
-		exact H.
-	+	apply IHl in H.
-		pose proof (Hinc := inc_decomp t0).
-		destruct Hinc as [b Hinc], Hinc as [tn Hinc].
-		rewrite <- Hinc in *.
-		apply is_canonical_struct_cons.
-		assumption.
-	}
-Qed.
-*)
-*)
-
-(*
-Lemma canonical_double : forall (n : t),
-	is_canonical n -> is_canonical (snoc (inc n) 0).
-Proof.
-	intros n H.
-	{	induction H.
-	+	replace (0 :: inc []) with (inc (inc [])) by reflexivity.
-		apply canonical_inc, canonical_inc, canonical_0.
-	+	apply canonical_inc, canonical_inc in IHis_canonical.
-		simpl in IHis_canonical.
-		assumption.
-	}
-Qed.
-
-Lemma is_canonical_struct_equiv : forall (n : t),
-	is_canonical n <-> is_canonical_struct n.
-Proof.
-	intro n.
-	{	split; intro H.
-	+	{	induction H as [|n H].
-		+	reflexivity.
-		+	apply is_canonical_inc_struct.
-			assumption.
-		}
-	+	{	induction n as [|bn tn].
-		+	apply canonical_0.
-		+	destruct tn; [destruct bn; [discriminate|apply canonical_1]|].
-			assert (Ht : is_canonical_struct (b :: tn)) by (destruct bn; assumption).
-			apply IHtn in Ht.
-			{	destruct Ht, bn.
-			+	discriminate.
-			+	apply canonical_1.
-			+	apply canonical_double.
-				assumption.
-			+	replace (1 :: inc n) with (inc (0 :: inc n)) by reflexivity.
-				apply canonical_inc.
-				apply canonical_double.
-				assumption.
-			}
-		}
-	}
-Qed.
-*)
-
-(*
-Lemma is_canonical_struct_app_fix : forall l r b,
-		r <> Ob -> is_canonical_struct_fix b (app l r) = is_canonical_struct_fix false r.
-Admitted.
-(*
-Proof.
-	intros l r b Hr.
-	revert b.
-	{	induction l as [|bl tl HR]; intros b; simpl in *.
-	+	destruct r; [contradiction|reflexivity].
-	+	destruct bl; apply HR.
-	}
-Qed.
-*)
-
-Lemma is_canonical_struct_app : forall l r,
-		r <> Ob -> is_canonical_struct (app l r) <-> is_canonical_struct r.
-Proof.
-	intros l r Hr.
-	{	split; unfold is_canonical_struct; intro H.
-	+	rewrite is_canonical_struct_app_fix in H; [|assumption].
-		apply is_canonical_struct_false in H.
-		assumption.
-	+	rewrite is_canonical_struct_app_fix; [|assumption].
-		destruct r; [contradiction|assumption].
-	}
-Qed.
-
-(*
-Lemma canonical_ones : forall n, is_canonical (repeat 1 n).
-Proof.
-	intros n.
-	apply is_canonical_struct_equiv.
-	{	induction n as [|n HR]; simpl.
-	+	reflexivity.
-	+	assumption.
-	}
-Qed.
-*)
-*)
-
 (** normalize *)
 
 Definition ssnoc n b :=
@@ -685,29 +510,6 @@ Proof.
 		reflexivity.
 	}
 Qed.
-
-(*Local Lemma dec_aux_None : forall n, dec n = None <-> to_nat n = O.
-Admitted.
-
-Proof.
-	intro n.
-	{	split; intro H; functional induction (dec n); simpl in *.
-	+	reflexivity.
-	+	destruct (dec t0); [discriminate|].
-		rewrite IHo; reflexivity.
-	+	discriminate.
-	+	discriminate.
-	+	reflexivity.
-	+	apply PeanoNat.Nat.eq_add_0 in H; destruct H as [H _].
-		rewrite H in IHo.
-		rewrite IHo; reflexivity.
-	+	discriminate.
-	+	destruct _x; [discriminate|].
-		rewrite plus_Sn_m in H.
-		discriminate.
-	}
-Qed. *)
-
 
 Lemma dec_Some : forall n, is_some (dec n) = true -> to_nat n <> O.
 Proof.
@@ -856,100 +658,6 @@ Definition sub n m :=
 	option_map (fun d => inc (splug d.(dec_tn) (0 :: d.(dec_diff)))) (gt n m).
 
 Notation "n - m" := (sub n m) : bin_nat_scope.
-	  
-(* XXX: Delete
-Fixpoint gtb_cont b n m :=
-	match n, m with
-	| [], [] => b
-	| [], _ => false
-	| _, [] => true
-	| 0 :: tn, 0 :: tm | 1 :: tn, 1 :: tm => gtb_cont b tn tm
-	| 1 :: tn, 0 :: tm => gtb_cont true tn tm
-	| 0 :: tn, 1 :: tm => gtb_cont false tn tm
-	end.
-
-Definition gtb := gtb_cont false.
-
-Lemma gtb_cont_decomp_equiv : forall n m dn an,
-		is_canonical_struct n ->
-		is_canonical_struct m ->
-		(m <> [] -> is_some (gtb_decomp_aux n m dn an) = gtb_cont true n m)
-		/\ is_some (gtb_decomp_borrow n m dn an) = gtb_cont false n m.
-Proof.
-	intro n.
-	{	induction n as [|bn tn HR]; intros m dn an Hn Hm;
-			[|destruct bn; apply is_canonical_struct_tl in Hn as Htn];
-			(destruct m as [|bm tm];
-			 	[|destruct bm; apply is_canonical_struct_tl in Hm as Htm]);
-			simpl; (split; [intro He|]); try reflexivity.
-	+	contradiction.
-	+	contradiction.
-	+	assert (tn <> []) by (destruct tn; discriminate).
-		apply gtb_cont_decomp_equiv_empty; assumption.
-	+	assert (tm <> []) by (destruct tm; discriminate).
-		apply HR; assumption.
-	+	apply HR; assumption.
-	+	apply HR; assumption.
-	+	apply HR; assumption.
-	+	contradiction.
-	+	assert (tm <> []) by (destruct tm; discriminate).
-		apply HR; assumption.
-	+	assert (tm <> []) by (destruct tm; discriminate).
-		apply HR; assumption.
-	+	destruct tm; [destruct tn as [|bn tn]; [|destruct bn]; reflexivity|].
-		apply HR; [assumption..|discriminate].
-	+	apply HR; assumption.
-	}
-Qed.
-
-Lemma gtb_decomp_equiv : forall n m,
-		is_canonical_struct n ->
-		is_canonical_struct m ->
-		is_some (gtb_decomp n m) = (n >? m).
-Proof.
-	intros n m Hn Hm.
-	apply gtb_cont_decomp_equiv; assumption.
-Qed.
-
-Lemma gtb_cont_total : forall n m b,
-		gtb_cont b n m = true \/ gtb_cont (negb b) m n = true.
-Proof.
-	intro n.
-	{	induction n as [|bn tn HR]; [|destruct bn]; intros m b;
-			(destruct m as [|bm tm]; [|destruct bm]); simpl.
-	+	destruct b; [left|right]; reflexivity.
-	+	right; reflexivity.
-	+	right; reflexivity.
-	+	left; reflexivity.
-	+	apply HR.
-	+	apply HR.
-	+	left; reflexivity.
-	+	apply HR.
-	+	apply HR.
-	}
-Qed.
-*)
-
-(*
-Lemma gtb_cont_decomp_equiv_empty : forall n dn an,
-		is_canonical_struct n -> n <> Ob ->
-		is_some (gtb_decomp_borrow n Ob dn an) = true.
-Admitted.
-*)
-(*
-Proof.
-	intro n.
-	{	induction n as [|bn tn HR]; [|destruct bn]; intros dn an Hn He; simpl.
-	+	contradiction.
-	+	assert (tn <> []) by (destruct tn; discriminate).
-		apply is_canonical_struct_tl in Hn.
-		apply HR; assumption.
-	+	reflexivity.
-	}
-Qed.
-*)
-
-
 
 Lemma is_decomp_app : forall x y decomp,
 		is_decomp x (app (snoc Ob 0) y) decomp -> is_decomp x y decomp.
@@ -1149,77 +857,6 @@ Proof.
 	rewrite Hzip, (to_nat_plug tl), Hlen.
 	reflexivity.
 Qed.
-
-(*Lemma or_list_eq : forall (b : Bit) l1 l2 H, l1 = l2 \/ H -> b :: l1 = b :: l2 \/ H.
-Proof.
-	intros b l1 l2 H Ht.
-	{	destruct Ht as [Ht|Ht].
-	+	left.
-		rewrite Ht.
-		reflexivity.
-	+	right.
-		assumption.
-	}
-Qed.
-
-
-(*Lemma gtb_total : forall n m,
-		n = m \/ n >? m = true \/ m >? n = true.
-Proof.
-	intro n.
-	unfold gtb.
-	{	induction n as [|tn HR bn]; [|destruct bn]; intro m;
-			(destruct m as [|tm bm]; [|destruct bm]); simpl.
-	+	left; reflexivity.
-	+	right; right; reflexivity.
-	+	right; right; reflexivity.
-	+	right; left; reflexivity.
-	+	apply or_list_eq, HR.
-	+	right; apply gtb_cont_total.
-	+	right; left; reflexivity.
-	+	right; apply gtb_cont_total.
-	+	apply or_list_eq, HR.
-	}
-Qed.
-*)
-Lemma gtb_antireflexive : forall n, n >? n = false.
-Proof.
-	intros n.
-	unfold gtb.
-	{	induction n as [|bn tn HR].
-	+	reflexivity.
-	+	destruct bn; apply HR.
-	}
-Qed.
-Lemma gtb_antisym_cont : forall n m b, gtb_cont b n m = false \/ gtb_cont (negb b) m n = false.
-Proof.
-	intros n.
-	{	induction n as [|bn tn HR]; intros m b;
-			(destruct m as [|bm tm]); simpl.
-	+	destruct b; [right|left]; reflexivity.
-	+	left; reflexivity.
-	+	right; reflexivity.
-	+	destruct bn; destruct bm; apply HR.
-	}
-Qed.
-
-Lemma gtb_antisym : forall n m, n >? m = false \/ m >? n = false.
-Proof.
-	intro n.
-	unfold gtb.
-	{	induction n as [|bn tn HR]; intro m; destruct m as [|bm tm]; simpl.
-	+	left; reflexivity.
-	+	left; reflexivity.
-	+	right; reflexivity.
-	+	{	destruct bn, bm.
-		+	apply HR.
-		+	apply gtb_antisym_cont.
-		+	apply gtb_antisym_cont.
-		+	apply HR.
-		}
-	}
-Qed.
- *)
 
 Lemma le_double_0 : forall n, n <= 0 -> 2 * n <= 0.
 Proof.
