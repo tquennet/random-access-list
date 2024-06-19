@@ -1,0 +1,29 @@
+opam-version: "2.0"
+maintainer: "pierre@evr.ist"
+version: "dev"
+
+homepage: "https://github.com/tquennet/random-access-list"
+dev-repo: "git@github.com:tquennet/random-access-list.git"
+bug-reports: "https://github.com/tquennet/random-access-list/issues"
+license: "MIT"
+
+synopsis: ""
+description: ""
+
+build: [make "build"]
+
+run-test: [make "test"]
+
+build-doc: [make "html"]
+
+depends: [
+  "ocaml" {>= "4.05.0"}
+  "coq" {(>= "8.6") | (= "dev")}
+]
+
+tags: [
+]
+authors: [
+  "Pierre-Evariste Dagand"
+  "Titouan Quennet"
+]
