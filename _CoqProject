@@ -9,3 +9,4 @@ theories/numerical/Num.v
 theories/numerical/binary/BinNat.v
 theories/container/binary/Clbt.v
 theories/structure/binary/Ral.v
+theories/structure/binary/RalFacts.v
