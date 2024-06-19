@@ -11,3 +11,4 @@ theories/equiv/unary/Nat_List.v
 theories/numerical/binary/BinNat.v
 theories/container/binary/Clbt.v
 theories/structure/binary/Ral.v
+theories/structure/binary/RalFacts.v
