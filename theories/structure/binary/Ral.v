@@ -691,13 +691,28 @@ with open_borrow (l : t) (n : BinNat.t) (dbn : BinNat.dt) (dral : dt) :=
             open_aux tl tn (0 :: dbn) (bit :: dral)
 	end.
 
-Definition open l n := open_borrow l n [] [].
+Fixpoint open_eq (l : t) (n : BinNat.t) (dbn : BinNat.dt) (dral : dt) :=
+	match l, n with
+	| Ob, Ob => Some None
+	| Ob, _ => None
+	| snoc tl (Zero as bit), Ob =>
+            option_map Some (open_borrow tl Ob (1 :: dbn) (bit :: dral))
+	| snoc tl (One t), Ob => Some (Some (mkZip tl t dral dbn))
+	| snoc tl (Zero as bit), snoc tn 0 | snoc tl (One _ as bit), snoc tn 1 =>
+		open_eq tl tn (1 :: dbn) (bit :: dral)
+	| snoc tl (Zero as bit), snoc tn 1 =>
+		option_map Some (open_borrow tl tn (0 :: dbn) (bit :: dral))
+	| snoc tl (One _ as bit), snoc tn 0 =>
+		option_map Some (open_aux tl tn (0 :: dbn) (bit :: dral))
+	end.
+
+Definition open l n := open_eq l n [] [].
 
 Definition dec_zip zip :=
 	match BinNat.dt_dec zip.(z_idx) with
-	| (false, r) => open_borrow zip.(z_suffix) Ob (1 :: r)
+	| (false, r) => open_eq zip.(z_suffix) Ob (1 :: r)
 									   (One zip.(z_tree) :: zip.(z_prefix))
-	| (true, r) => Some (mkZip zip.(z_suffix) zip.(z_tree) zip.(z_prefix) r)
+	| (true, r) => Some (Some (mkZip zip.(z_suffix) zip.(z_tree) zip.(z_prefix) r))
 	end.
 
 Lemma open_aux_valid : forall (l : t) n dbn dl,
@@ -727,14 +742,31 @@ Proof.
 	+	apply open_borrow_valid; assumption.
 Qed.
 
+Lemma open_eq_valid : forall l n dbn dl,
+		is_valid_k (List.length dbn) l -> is_dvalid (List.length dbn) dl ->
+		option_lift (option_lift is_zvalid) (open_eq l n dbn dl).
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; intros n dbn dl Hl Hdl; [|destruct bl as [|t];
+			destruct Hl as [Htl Hbl]; pose proof(H := valid_DCons _ _ _ Hbl Hdl)];
+			(destruct n as [|tn bn]; [|destruct bn]); simpl in *; try apply I.
+	+	eapply lift_map_conseq, open_borrow_valid; [trivial|assumption..].
+	+	apply HR; assumption.
+	+	eapply lift_map_conseq, open_borrow_valid; [trivial|assumption..].
+	+	apply is_dvalid_length in Hdl as Hl.
+		split; assumption.
+	+	eapply lift_map_conseq, open_aux_valid; [trivial|assumption..].
+	+	apply HR; assumption.
+	}
+Qed.		
+
 Theorem open_valid : forall l n,
 		is_valid l ->
-		option_lift is_zvalid (open l n).
+		option_lift (option_lift is_zvalid) (open l n).
 Proof.
 	intros l n Hl.
-	apply open_borrow_valid; [assumption|apply valid_DNil].
+	apply open_eq_valid; [assumption|apply valid_DNil].
 Qed.
-
 
 
 Lemma open_zipper_aux : forall l n dbn dl,
@@ -755,22 +787,41 @@ Proof.
 	+	apply (open_zipper_aux tl).
 	+	apply (open_zipper_borrow tl).
 Qed.
-Lemma open_zipper : forall l n, option_lift (is_zipper l) (open l n).
+
+Lemma open_zipper_eq : forall l n dbn dl,
+		option_lift (option_lift (is_zipper (plug l dl))) (open_eq l n dbn dl).
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; [|destruct bl as [|t]]; intros n dbn dl;
+		(destruct n as [|tn bn]; [|destruct bn]); try apply I; simpl in *.
+	+	eapply lift_map_conseq, open_zipper_borrow; trivial.
+	+	apply HR.
+	+	eapply lift_map_conseq, open_zipper_borrow; trivial.
+	+	reflexivity.
+	+	eapply lift_map_conseq, open_zipper_aux; trivial.
+	+	apply HR.
+	}
+Qed.
+Lemma open_zipper : forall l n, option_lift (option_lift (is_zipper l)) (open l n).
 Proof.
 	intros l n.
-	apply open_zipper_borrow.
+	apply open_zipper_eq.
 Qed.
 
-Definition forget_zipper :=
+
+Let __forget_zipper :=
 	option_map (fun z => BinNat.mkZip (to_bin z.(z_suffix))
 		(dto_bin z.(z_prefix)) z.(z_idx)).
+Definition forget_zipper :=
+	option_map __forget_zipper.
 
 
-Lemma open_gt_aux : forall l n dl dn,
-		forget_zipper (open_aux l n dn dl)
+
+Lemma open_gt_aux : forall l n (dl : dt) dn,
+		__forget_zipper (open_aux l n dn dl)
 			= BinNat.gt_aux (to_bin l) n (dto_bin dl) dn
 with open_gt_borrow : forall l n dl dn,
-		forget_zipper (open_borrow l n dn dl)
+		__forget_zipper (open_borrow l n dn dl)
 			= BinNat.gt_borrow (to_bin l) n (dto_bin dl) dn.
 Proof.
 		all : intros l n dbn dl;
@@ -788,11 +839,33 @@ Proof.
 	+	apply open_gt_borrow.
 Qed.
 
+Lemma open_gt_eq : forall (l : t) n (dl : dt) dn,
+		forget_zipper (open_eq l n dn dl)
+			= BinNat.gt_eq (to_bin l) n (dto_bin dl) dn.
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; [|destruct bl as [|t]]; intros n dl dn;
+		(destruct n as [|tn bn]; [|destruct bn]);
+			try rewrite to_bin_snoc; simpl in *; try reflexivity; unfold forget_zipper.
+	+	pose proof (H := open_gt_borrow tl Ob (Zero :: dl) (1 :: dn)).		
+		destruct BinNat.gt_borrow, open_borrow; simpl;
+			[rewrite <- H|discriminate..|]; reflexivity.
+	+	apply HR.
+	+	pose proof (H := open_gt_borrow tl tn (Zero :: dl) (0 :: dn)).		
+		destruct BinNat.gt_borrow, open_borrow; simpl;
+			[rewrite <- H|discriminate..|]; reflexivity.
+	+	pose proof (H := open_gt_aux tl tn ((One t) :: dl) (0 :: dn)).
+		destruct BinNat.gt_aux, open_aux; simpl;
+			[rewrite <- H|discriminate..|]; reflexivity.
+	+	apply HR.
+	}
+Qed.
+
 Theorem open_gt : forall l n,
     forget_zipper (open l n) = BinNat.gt (to_bin l) n.
 Proof.
 	intros l n.
-	apply open_gt_borrow.
+	apply open_gt_eq.
 Qed.
 
 End open.
