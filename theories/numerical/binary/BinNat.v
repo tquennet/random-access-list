@@ -651,19 +651,32 @@ with gt_borrow (n : t) (m : t) (dn : dt) (an : dt) :=
 	| snoc tn (1 as bit), snoc tm 0 => gt_aux tn tm (bit :: dn) (0 :: an)
 	end.
 
-Definition gt n m := gt_borrow n m [] [].
+Fixpoint gt_eq (n : t) (m : t) (dn : dt) (an : dt) :=
+	match n, m with
+	| Ob, Ob => Some None
+	| Ob, _ => None
+	| snoc tn (0 as bit), Ob => option_map Some (gt_borrow tn Ob (bit :: dn) (1 :: an))
+	| snoc tl 1, Ob => Some (Some (mkZip tl dn an))
+	| snoc tn (0 as bit), snoc tm 0 | snoc tn (1 as bit), snoc tm 1
+		=> gt_eq tn tm (bit :: dn) (1 :: an)
+	| snoc tn (0 as bit), snoc tm 1 => option_map Some (gt_borrow tn tm (bit :: dn) (0 :: an))
+	| snoc tn (1 as bit), snoc tm 0 => option_map Some (gt_aux tn tm (bit :: dn) (0 :: an))
+	end.
+
+Definition gt n m := gt_eq n m [] [].
 
 Definition gtb n m := 
-  match gt n m with
-  | None => false
-  | Some _ => true
-  end.
+	match gt n m with
+	| Some (Some _) => true
+	| _ => false
+	end.
 
 Notation "n >? m" := (gtb n m) : bin_nat_scope.
 
 (*	gérer correctement sub n n *)
 Definition sub n m :=
-	option_map (fun d => inc (splug d.(dec_tn) (0 :: d.(dec_diff)))) (gt n m).
+	option_map (fun o => option_default Ob
+		(option_map (fun d => inc (splug d.(dec_tn) (0 :: d.(dec_diff)))) o)) (gt n m).
 
 Notation "n - m" := (sub n m) : bin_nat_scope.
 
@@ -824,13 +837,126 @@ Proof.
 		reflexivity.
 Qed.
 
+Lemma gt_eq_is_decomp : forall x y n m dn dm an,
+		x = plug n dn -> y = plug m dm ->		
+		List.length an = List.length dn ->
+		List.length dm = List.length dn ->
+		is_canonical m ->
+		S (ctxt_to_nat an + ctxt_to_nat dm) = ctxt_to_nat (1 :: dn) ->
+		option_lift (option_lift (is_decomp x y)) (gt_eq n m dn an).
+Proof.
+	intros x y n.
+	{	(induction n as [|tn HR bn]; [|destruct bn]);
+		intros m dn dm an Hx Hy Hl1 Hl2 Hm Hval;
+		(destruct m as [|tm bm]; [|destruct bm]);
+		apply (f_equal S) in Hl1 as Hsl1; apply (f_equal S) in Hl2 as Hsl2;	
+		simpl in *; try apply I.
+		+	pose proof (Hborrow :=
+				gt_borrow_is_decomp x (app (snoc Ob 0) y) tn Ob (0 :: dn) (0 :: dm) (1 :: an)).
+		assert (Htl : to_list (app (snoc Ob 0) y) = to_list (plug Ob (0 :: dm))) by
+			(rewrite to_list_app, to_list_snoc, Hy, !to_list_rev; reflexivity).
+		apply to_list_inj in Htl.
+		eapply lift_map_conseq; [intros o Ho; apply is_decomp_app, Ho|].
+		apply Hborrow; [assumption..|].
+		rewrite !list_cxt_to_nat, !to_list_rev in *.
+		simpl.
+		rewrite !list_to_nat_app in *.
+		simpl in *.
+		rewrite <- !plus_n_O in *.
+		rewrite PeanoNat.Nat.add_shuffle0, <- plus_Sn_m, Hval, last_length, !list_to_nat_app.
+		simpl.
+		rewrite <- !plus_n_O, PeanoNat.Nat.add_assoc, !rev_length, Hl1.
+		reflexivity.
+	+	specialize (HR tm (0 :: dn) (0 :: dm) (1 :: an)).
+		apply is_canonical_tl in Hm.
+		apply HR; [assumption..|].
+		rewrite !list_cxt_to_nat, !to_list_rev in *.
+		simpl.
+		rewrite !list_to_nat_app in *.
+		simpl in *; rewrite <- !plus_n_O in *.
+		rewrite PeanoNat.Nat.add_shuffle0, <- plus_Sn_m, Hval, last_length,
+			!list_to_nat_app.
+		simpl.
+		rewrite <- !plus_n_O, PeanoNat.Nat.add_assoc, !rev_length, Hl1.
+		reflexivity.
+	+	pose proof (Hborrow := gt_borrow_is_decomp x y tn tm (0 :: dn) (1 :: dm) (0 :: an)).
+		apply is_canonical_tl in Hm.
+		eapply lift_map_conseq; [intros o Ho; apply Ho|].
+		apply Hborrow; [assumption..|].
+		rewrite !list_cxt_to_nat, !to_list_rev in *.
+		simpl.
+		rewrite !list_to_nat_app in *.
+		simpl in *; rewrite <- !plus_n_O in *.
+		rewrite PeanoNat.Nat.add_assoc, <- plus_Sn_m, Hval, last_length,
+			!list_to_nat_app, !rev_length, Hl2.
+		simpl; rewrite <- plus_n_O, PeanoNat.Nat.add_assoc.
+		reflexivity.
+	+	rewrite !list_cxt_to_nat, !to_list_rev in *.
+		{	split; simpl.
+		+	assumption.
+		+	assumption.
+		+	rewrite !list_cxt_to_nat, !to_list_to_nat, Hy, !to_list_rev.
+			assumption.
+		}
+	+	pose proof (Haux := gt_aux_is_decomp x y tn tm (1 :: dn) (0 :: dm) (0 :: an)).
+		inversion_clear Hm as [_m Hm2|].
+		inversion_clear Hm2 as [| |_m Htm].
+		eapply lift_map_conseq; [intros o Ho; apply Ho|].
+		apply Haux; [assumption..|].
+		rewrite !list_cxt_to_nat, !to_list_rev in *.
+		simpl.
+		rewrite !list_to_nat_app in *.
+		simpl in *; rewrite !list_to_nat_app, <- !plus_n_O in *.
+		rewrite Hval.
+		simpl.
+		rewrite <- plus_n_O.
+		reflexivity.
+	+	specialize (HR tm (1 :: dn) (1 :: dm) (1 :: an)).
+		apply is_canonical_tl in Hm as Htm.
+		apply HR; [assumption..|].
+		rewrite !list_cxt_to_nat, !to_list_rev in *.
+		simpl.
+		rewrite !list_to_nat_app in *.
+		simpl in *; rewrite <- !plus_n_O in *.
+		rewrite PeanoNat.Nat.add_shuffle1, <- plus_Sn_m, Hval, last_length,
+			!list_to_nat_app, !rev_length.
+		simpl.
+		rewrite <- !plus_n_O, Hl1, Hl2.
+		reflexivity.
+	}
+Qed.
+
 Lemma gt_is_decomp : forall n m,
 		is_canonical m ->
-		option_lift (is_decomp n m) (gt n m).
+		option_lift (option_lift (is_decomp n m)) (gt n m).
 Proof.
 	intros n m Hm.
 	unfold gt in *.
-	apply (gt_borrow_is_decomp _ _ _ _ [] []); (assumption || reflexivity).
+	apply (gt_eq_is_decomp _ _ _ _ [] []); (assumption || reflexivity).
+Qed.
+
+
+Lemma gt_eq_Some_None : forall n m dn an, gt_eq n m dn an = Some None -> n = m.
+Proof.
+	intros n.
+	{	induction n as [|tn HR bn]; [|destruct bn]; intros m dn an H;
+		(destruct m as [|tm bm]; [|destruct bm]); simpl in *;
+		try discriminate.
+	+	reflexivity.
+	+	destruct gt_borrow; discriminate.
+	+	apply HR in H.
+		rewrite H; reflexivity.
+	+	destruct gt_borrow; discriminate.
+	+	destruct gt_aux; discriminate.
+	+	apply HR in H.
+		rewrite H; reflexivity.
+	}
+Qed.
+Lemma gt_Some_None : forall n m, gt n m = Some None -> n = m.
+Proof.
+	intros n m H.
+	apply gt_eq_Some_None in H.
+	assumption.
 Qed.
 
 Lemma sub_canonical : forall n m, is_canonical n -> is_canonical m ->
@@ -841,6 +967,7 @@ Proof.
 	unfold sub.
 	eapply lift_map_conseq, gt_is_decomp; [|assumption].
 	intros x Hx.
+	destruct x as [x|]; [|apply is_Ob].
 	destruct Hx as [_ Hzip _].
 	rewrite Hzip in Hn.
 	apply is_canonical_plug, is_canonical_tl in Hn.
@@ -853,8 +980,10 @@ Lemma sub_to_nat : forall n m, is_canonical m ->
 Proof.
 	intros n m Hm.
 	unfold sub.
-	eapply lift_map_conseq, gt_is_decomp; [|assumption].
-	intros x Hx.
+	pose proof (Hsn := gt_Some_None n m).
+	pose proof (Hx := gt_is_decomp n m Hm).
+	destruct gt as [x|]; [|apply I]; simpl.
+	destruct x as [x|]; [|rewrite Hsn; [apply eq_sym, Nat.sub_diag|reflexivity]].
 	destruct Hx as [Hlen Hzip Hval], x as [tl dl diff]; simpl in *.
 	rewrite inc_S, to_nat_splug, <- (Nat.add_sub _ (to_nat m)), list_cxt_to_nat, to_list_rev.
 	cbn [List.rev List.length].
@@ -949,13 +1078,61 @@ Proof.
 	}
 Qed.
 
+Lemma gt_borrow_pos_None : forall n dn an,
+		is_positive n -> gt_borrow n Ob dn an <> None.
+Proof.
+	intro n.
+	induction n as [|tn HR bn]; [|destruct bn]; intros dn an Hn H;
+		simpl in *; try discriminate; inversion_clear Hn as [| |? Htn].
+	apply HR in H; assumption.
+Qed.
+
+Lemma gt_eq_None : forall n m dn an,
+		is_canonical n ->
+		is_canonical m ->
+		gt_eq n m dn an = None ->
+		to_nat n < to_nat m.
+Proof.
+	intro n.
+	{	induction n as [|tn HR bn]; [|destruct bn]; intros m dn an Hn Hm H;
+			(destruct m as [|tm bm]; [|destruct bm]); simpl in *; try discriminate.
+	+	inversion_clear Hm as [? Hp|].
+		apply positive_to_nat in Hp.
+		destruct (to_nat (snoc _ _)); [contradiction|apply Nat.lt_0_succ].
+	+	rewrite to_nat_snoc; simpl; rewrite <- plus_n_Sm.
+		apply Nat.lt_0_succ.
+	+	inversion_clear Hn as [? Hp|]; inversion_clear Hp as [| |? Htn].
+		pose proof (Hc := gt_borrow_pos_None tn (0 :: dn) (1 :: an) Htn).
+		destruct gt_borrow; [discriminate|contradiction].
+	+	rewrite !to_nat_snoc, <- !plus_n_O.
+		apply is_canonical_tl in Hn, Hm.
+		apply HR in H; [|assumption..].
+		apply Nat.mul_lt_mono_pos_l; auto.
+	+	apply is_canonical_tl in Hm.
+		pose proof (Haux := proj2 (gt_aux_None tn tm (0 :: dn) (0 :: an)) Hm).
+		destruct gt_borrow; [discriminate|].
+		rewrite !to_nat_snoc; cbn [bit_to_nat pow]; rewrite <- plus_n_Sm, <- !plus_n_O.
+		apply le_n_S, Nat.mul_le_mono_nonneg_l, Haux; auto.
+	+	inversion_clear Hm as [? Hp|]; inversion_clear Hp as [| |? Htm].
+		rewrite !to_nat_snoc; cbn [bit_to_nat pow]; rewrite <- plus_n_Sm, <- !plus_n_O.
+		pose proof (Haux := proj1 (gt_aux_None tn tm (1 :: dn) (0 :: an)) Htm).
+		apply lt_double_S, Haux.
+		destruct gt_aux; [discriminate| reflexivity].
+	+	apply is_canonical_tl in Hn, Hm.
+		apply HR in H; [|assumption..].
+		rewrite !to_nat_snoc; cbn [bit_to_nat pow]; rewrite <- !plus_n_Sm, <- !plus_n_O.
+		apply le_n_S, Nat.mul_lt_mono_pos_l; auto.
+	}
+Qed.
+	
 Lemma gt_None : forall n m,
+		is_canonical n ->
 		is_canonical m ->
 		gt n m = None ->
-		to_nat n <= to_nat m.
+		to_nat n < to_nat m.
 Proof.
 	intros n m Hm H.
-	apply (gt_aux_None n m [] []); assumption.
+	apply (gt_eq_None n m [] []); assumption.
 Qed.
 
 Theorem gtb_nat : forall n m,
@@ -964,10 +1141,13 @@ Theorem gtb_nat : forall n m,
 Proof.
 	intros n m Hn Hm.
 	pose proof (Hsome := gt_is_decomp n m Hm).
-	pose proof (Hnone := gt_None n m Hm).
+	pose proof (Hsomenone := gt_Some_None n m).
+	pose proof (Hnone := gt_None n m Hn Hm).
 	unfold gtb.
 	{	destruct gt as [decomp|] eqn:H.
-	+	apply eq_sym, Nat.ltb_lt.
+	+	destruct decomp as [decomp|];
+			[|rewrite Hsomenone; [apply eq_sym, Nat.ltb_ge, le_n|reflexivity]].
+		apply eq_sym, Nat.ltb_lt.
 		destruct Hsome as [Hl Hz Hval],
 			decomp as [tn dn diff]; simpl in *.
 		rewrite <- plus_Sn_m in Hval.
@@ -981,7 +1161,7 @@ Proof.
 		rewrite rev_append_rev, list_to_nat_app, <- to_list_rev, <- list_cxt_to_nat in Hz.
 		assert (H2 : ctxt_to_nat (1 :: dn) <= to_nat n) by (rewrite Hz; apply Nat.le_add_r).
 		apply (Nat.lt_le_trans _ (ctxt_to_nat (1 :: dn))); assumption.
-	+	apply eq_sym, Nat.ltb_ge, Hnone.
+	+	apply eq_sym, Nat.ltb_ge, Nat.lt_le_incl, Hnone.
 		reflexivity.
 	}
 Qed.
@@ -992,11 +1172,21 @@ Lemma gt_inj : forall x n m,
 			(gt x m)) (gt x n).
 Proof.
 	intros x n m Hx Hn Hm.
-	eapply lift_conseq, gt_is_decomp; [|assumption].
+	assert (Hp : forall n m, is_canonical n -> is_canonical m ->
+		option_lift (fun o => (option_lift (is_decomp n m) o) /\ (o = None -> n = m))  (gt n m))
+		by (intros a b Ha Hb;
+		pose proof (Hd := gt_is_decomp a b Hb);
+		pose proof (Hsn := gt_Some_None a b);
+		destruct gt as [o|]; [|apply I]; split;
+		[assumption|destruct o; [discriminate|intro H; apply Hsn, eq_refl]]).
+	eapply lift_conseq, Hp; [|assumption..].
 	intros decompn Hxn.
-	eapply lift_conseq, gt_is_decomp; [|assumption].
+	eapply lift_conseq, Hp; [|assumption..].
 	intros decompm Hxm H.
 	apply to_nat_inj; [assumption..|].
+	destruct Hxn as [Hxn Hsn], Hxm as [Hxm Hsm].
+	destruct decompn as [decompn|], decompm as [decompm|];
+		[|discriminate..|rewrite <- Hsn, Hsm; reflexivity].
 	destruct decompn as [tn dn an], decompm as [tm dm am],
 			Hxn as [_ _ Hnv], Hxm as [_ _ Hmv]; simpl in *.
 	revert Hnv Hmv.
@@ -1009,17 +1199,19 @@ Qed.
 
 Lemma gt_inj_neq : forall x n m,
 		n <> m -> is_canonical x -> is_canonical n -> is_canonical m ->
-		option_lift (fun decompn => option_lift
-			(fun decompm => decompn.(dec_diff) <> decompm.(dec_diff)) (gt x m)) (gt x n).
+		option_lift (option_lift (fun decompn => option_lift (option_lift
+			(fun decompm => decompn.(dec_diff) <> decompm.(dec_diff))) (gt x m))) (gt x n).
 Proof.
 	intros x n m H Hx Hn Hm.
 	pose proof (Hinj := gt_inj x n m Hx Hn Hm).
 	pose proof (Hdn := gt_is_decomp x n Hn).
 	pose proof (Hdm := gt_is_decomp x m Hm).
-	destruct (gt x n) as [decompn|], (gt x m) as [decompm|]; [|apply I..]; simpl in *.
+	destruct (gt x n) as [decompn|], (gt x m) as [decompm|];
+		try destruct decompn as [decompn|]; try destruct decompm as [decompm|];
+		[|apply I..]; simpl in *.
 	intro Ha.
 	assert (Hc : decompn <> decompm)
-		by (intro Hc; apply Hinj in Hc; contradiction).
+		by (intro Hc; rewrite Hc in Hinj; contradiction (Hinj eq_refl)).
 	destruct decompn as [tn dn an], decompm as [tm dm am],
 		Hdn as [Hln Hzn Hvn], Hdm as [Hlm Hzm Hvm]; simpl in *.
 	{	destruct (PeanoNat.Nat.eq_dec (List.length an) (List.length am)) as [Hl|Hl].
