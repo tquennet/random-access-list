@@ -58,10 +58,6 @@ Lemma lift_conseq {X}: forall (P Q : X -> Prop)(r: option X),
     option_lift P r -> option_lift Q r.
 Proof. intros; destruct r; simpl; auto. Qed.
 
-(*Variant option_predicate : option A -> Prop :=
-	| OP_None : option_predicate None
-	| OP_Some : forall a, P a -> option_predicate (Some a).*)
-
 Lemma lift_map_conseq {X Y} : forall (P : X -> Prop) (Q : Y -> Prop) (r : option X) (f : X -> Y),
 		(forall x, P x -> Q (f x)) ->
 		option_lift P r -> option_lift Q (option_map f r).  

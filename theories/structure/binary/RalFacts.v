@@ -156,24 +156,29 @@ Qed.*)
 
 Notation Zero := (@Zero (@CLBT.t A)).
 
-Lemma open_zero : forall l,
-		option_lift (fun zip =>
-		zip.(z_prefix _) = repeat Zero (length zip.(z_prefix _))
-		/\ zip.(z_idx _) = repeat 1 (length zip.(z_idx _))) (open l Ob).
-Proof.
-	
-	enough (Hob : forall l n,
-		option_lift (fun zip =>
+Lemma open_borrow_zero : forall l n, option_lift (fun zip =>
 		zip.(z_prefix _) = repeat Zero (length zip.(z_prefix _))
 		/\ zip.(z_idx _) = repeat 1 (length zip.(z_idx _)))
-		(open_borrow l Ob (repeat 1 n) (repeat Zero n)))
-		by (intros l; apply (Hob l O)).
+		(open_borrow l Ob (repeat 1 n) (repeat Zero n)).
+Proof.
 	intro l.
 	{	induction l as [|tl HR bl]; [|destruct bl]; intros n; simpl in *.
 	+	apply I.
 	+	apply (HR (S n)).
 	+	split; rewrite repeat_length; reflexivity.
 	}
+Qed.
+
+Lemma open_zero : forall l,
+		option_lift (option_lift (fun zip =>
+		zip.(z_prefix _) = repeat Zero (length zip.(z_prefix _))
+		/\ zip.(z_idx _) = repeat 1 (length zip.(z_idx _)))) (open l Ob).
+Proof.
+
+	intro l.
+	unfold open.
+	destruct l as [|tl bl]; [|destruct bl]; [apply I| |split;reflexivity]; simpl.
+	eapply lift_map_conseq, (open_borrow_zero _ (S O)); trivial.
 Qed.
 
 (*
@@ -350,7 +355,6 @@ Qed.
 *)
 
 Section open.
-
 Lemma open_aux_borrow_inc : forall (l : RAL) n dbn dl,
 		BinNat.is_canonical n ->
 		open_aux l (BinNat.inc n) dbn dl = open_borrow l n dbn dl.
@@ -369,10 +373,10 @@ Qed.
 
 Lemma open_aux_dt_true : forall (l : RAL) n dbn dl dd,
 		(BinNat.dt_dec dbn) = (true, dd) ->
-		option_lift (fun z => open_aux l n dd dl = dec_zip z) (open_aux l n dbn dl)
+		option_lift (fun z => option_map Some (open_aux l n dd dl) = dec_zip z) (open_aux l n dbn dl)
 with open_borrow_dt_true : forall (l : RAL) n dbn dl dd,
 		(BinNat.dt_dec dbn) = (true, dd) ->
-		option_lift (fun z => open_borrow l n dd dl = dec_zip z) (open_borrow l n dbn dl).
+		option_lift (fun z => option_map Some (open_borrow l n dd dl) = dec_zip z) (open_borrow l n dbn dl).
 Proof.
 	all: intro l; destruct l as [|tl bl]; [|destruct bl]; intros n dbn dral dd Hdd;
 		assert (Hsdd : forall b, BinNat.dt_dec (b :: dbn) = (true, b :: dd))
@@ -397,39 +401,161 @@ Proof.
 	+	eapply lift_conseq, open_borrow_dt_true, Hsdd; trivial.
 Qed.
 
-Lemma open_aux_inc : forall (l : RAL) n dbn dl dd,
-		BinNat.is_canonical n ->
-		(BinNat.dt_dec dbn) = (false, dd) ->
-		option_lift (fun z => open_borrow l n dd dl = dec_zip z)
-			(open_aux l n dbn dl)
-with open_borrow_inc : forall (l : RAL) n dbn dl dd,
-		BinNat.is_canonical n ->
-		(BinNat.dt_dec dbn) = (false, dd) ->
-		option_lift (fun z => open_borrow l (BinNat.inc n) dd dl = dec_zip z)
-			(open_borrow l n dbn dl).
+
+
+
+Lemma open_borrow_eq_dt_true : forall (l : RAL) n dbn dl dd,
+		(BinNat.dt_dec dbn) = (true, dd) ->
+		option_lift (option_lift
+			(fun z =>  option_map Some (open_borrow l n dd dl) = dec_zip z))
+			(open_eq l n dbn dl).
 Proof.
-	all: intro l; destruct l as [|tl bl]; [|destruct bl]; intros n dbn dl dd Hn Hdd;
+	intro l.
+	{	induction l as [|tl HR bl]; [|destruct bl]; intros n dbn dl dd Hdd;
+			assert (Hsdd : forall b, BinNat.dt_dec (b :: dbn) = (true, b :: dd))
+			by (intro b; simpl; rewrite Hdd; destruct b; reflexivity);
+			(destruct n as [|tn bn]; [|destruct bn]); try apply I; simpl.
+	+	eapply lift_map_conseq, open_borrow_dt_true, Hsdd; trivial.
+	+	apply HR, Hsdd.
+	+	eapply lift_map_conseq, open_borrow_dt_true, Hsdd; trivial.
+	+	unfold dec_zip; simpl.
+		rewrite Hdd; reflexivity.
+	+	eapply lift_map_conseq, open_aux_dt_true, Hsdd; trivial.
+	+	apply HR, Hsdd.
+	}
+Qed.
+
+Lemma open_aux_eq_dt_true : forall (l : RAL) n dbn dl dd,
+		BinNat.is_canonical n ->
+		(BinNat.dt_dec dbn) = (true, dd) ->
+		option_lift (option_lift
+			(fun z =>  option_map Some (open_aux l (BinNat.inc n) dd dl) = dec_zip z))
+			(open_eq l n dbn dl).
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; [|destruct bl]; intros n dbn dl dd Hn Hdd;
+			assert (Hsdd : forall b, BinNat.dt_dec (b :: dbn) = (true, b :: dd))
+			by (intro b; simpl; rewrite Hdd; destruct b; reflexivity);
+			(destruct n as [|tn bn]; [|destruct bn;
+				apply BinNat.is_canonical_tl in Hn as Htn]);
+			try apply I; simpl.
+	+	eapply lift_map_conseq, open_borrow_dt_true, Hsdd; trivial.
+	+	apply open_borrow_eq_dt_true, Hsdd.
+	+	rewrite open_aux_borrow_inc; [|assumption].
+		eapply lift_map_conseq, open_borrow_dt_true, Hsdd; trivial.
+	+	unfold dec_zip; simpl.
+		rewrite Hdd; reflexivity.
+	+	inversion_clear Hn as [? Hp|]; inversion_clear Hp as [| |? Htp].
+		destruct tn; [inversion_clear Htp|].
+		eapply lift_map_conseq, open_aux_dt_true, Hsdd; trivial.
+	+	destruct (BinNat.inc tn) eqn:Hdtn; rewrite <- Hdtn; apply HR, Hsdd; assumption.
+	}
+Qed.
+
+Lemma open_borrow_eq_pos_Ob : forall (l : RAL) dn dl,
+		BinNat.is_positive (to_bin l) ->
+		option_map Some (open_borrow l Ob dn dl) = open_eq l Ob dn dl.
+Proof.
+	intros l dn dl Hl.
+	destruct l as [|tl bl]; [inversion_clear Hl|destruct bl]; reflexivity.
+Qed.
+Lemma open_aux_eq : forall (l : RAL) n dbn dl dd,
+		BinNat.is_canonical n ->
+		(BinNat.dt_dec dbn) = (false, dd) ->
+		(option_lift (fun z =>  open_eq l n dd dl = dec_zip z))
+			(open_aux l n dbn dl).
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; intros n dbn dl dd Hn Hdd;
+		[|destruct bl];
+		(destruct n as [|tn bn]; [|destruct bn; apply BinNat.is_canonical_tl in Hn]);
 		assert (Hd1 : BinNat.dt_dec (1 :: dbn) = (true, 0 :: dd))
 			by (simpl; rewrite Hdd; reflexivity);
 		assert (Hd0 : BinNat.dt_dec (0 :: dbn) = (false, 1 :: dd))
 			by (simpl; rewrite Hdd; reflexivity);
-		(destruct n as [|tn bn]; [|destruct bn; apply BinNat.is_canonical_tl in Hn as Htn]);
 		try apply I; simpl.
-	+	eapply lift_conseq, open_aux_inc, Hd0; [|assumption]; trivial.
-	+	eapply lift_conseq, open_borrow_dt_true, Hd1; trivial.
-	+	destruct tn; eapply lift_conseq, open_aux_dt_true, Hd1; trivial.
-	+	destruct tn; [|eapply lift_conseq, open_aux_inc, Hd0; [|assumption]; trivial].
+	+	apply HR; assumption.
+	+	apply open_borrow_dt_true; assumption.
+	+	destruct tn; apply open_aux_dt_true; assumption.
+	+	destruct tn; [|apply HR; assumption].
 		unfold dec_zip; simpl.
 		rewrite Hdd; reflexivity.
-	+	eapply lift_conseq, open_borrow_dt_true, Hd1; trivial.
-	+	eapply lift_conseq, open_borrow_dt_true, Hd1; trivial.
-	+	eapply lift_conseq, open_borrow_inc, Hd0; trivial.
+	}
+Qed.
+Lemma open_borrow_inc : forall (l : RAL) n dbn dl dd,
+		is_canonical l ->
+		BinNat.is_canonical n ->
+		(BinNat.dt_dec dbn) = (false, dd) ->
+		(option_lift (fun z =>  open_eq l (BinNat.inc n) dd dl = dec_zip z))
+			(open_borrow l n dbn dl).
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; intros n dbn dl dd Hl Hn Hdd;
+		[|destruct bl; apply is_canonical_tl in Hl as Htl];
+		(destruct n as [|tn bn]; [|destruct bn; apply BinNat.is_canonical_tl in Hn]);
+		assert (Hd1 : BinNat.dt_dec (1 :: dbn) = (true, 0 :: dd))
+			by (simpl; rewrite Hdd; reflexivity);
+		assert (Hd0 : BinNat.dt_dec (0 :: dbn) = (false, 1 :: dd))
+			by (simpl; rewrite Hdd; reflexivity);
+		try apply I; simpl.
+	+	apply open_borrow_dt_true, Hd1.
+	+	apply open_borrow_dt_true, Hd1.
+	+	apply HR; assumption.
 	+	unfold dec_zip; simpl.
 		rewrite Hdd; reflexivity.
-	+	eapply lift_conseq, open_aux_inc, Hd0; trivial.
-	+	eapply lift_conseq, open_borrow_dt_true, Hd1; simpl.
-		intros x Hx.
-		rewrite open_aux_borrow_inc; assumption.
+	+	apply open_aux_eq; assumption.
+	+	rewrite open_aux_borrow_inc; [|assumption].
+		apply open_borrow_dt_true, Hd1.
+	}
+Qed.
+
+
+Lemma open_eq_inc : forall (l : RAL) n dbn dl dd,
+		is_canonical l ->
+		BinNat.is_canonical n ->
+		(BinNat.dt_dec dbn) = (false, dd) ->
+		option_lift (option_lift
+			(fun z =>  open_eq l (BinNat.inc n) dd dl = dec_zip z))
+			(open_eq l n dbn dl).
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; intros n dbn dl dd Hl Hn Hdd;
+		[|destruct bl; apply is_canonical_tl in Hl];
+		(destruct n as [|tn bn]; [|destruct bn; apply BinNat.is_canonical_tl in Hn]);
+		assert (Hd1 : BinNat.dt_dec (1 :: dbn) = (true, 0 :: dd))
+			by (simpl; rewrite Hdd; reflexivity);
+		assert (Hd0 : BinNat.dt_dec (0 :: dbn) = (false, 1 :: dd))
+			by (simpl; rewrite Hdd; reflexivity);
+		try apply I; simpl.
+	+	eapply lift_map_conseq, open_borrow_dt_true, Hd1; trivial.
+	+	apply open_borrow_eq_dt_true, Hd1.
+	+	eapply lift_map_conseq, open_borrow_inc, Hd0; [|assumption..]; trivial.
+	+	unfold dec_zip; simpl.
+		rewrite Hdd; reflexivity.
+	+	eapply lift_map_conseq, open_aux_eq, Hd0; [trivial|assumption].
+	+	apply open_aux_eq_dt_true; assumption.
+	}
+Qed.
+
+Lemma open_eq_dt_true : forall (l : RAL) n dbn dl dd,
+		(BinNat.dt_dec dbn) = (true, dd) ->
+		option_lift (option_lift (fun z => open_eq l n dd dl = dec_zip z))
+			(open_eq l n dbn dl).
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; [|destruct bl]; intros n dbn dl dd Hdd;
+		assert (Hsdd : forall b, BinNat.dt_dec (b :: dbn) = (true, b :: dd))
+			by (intro b; simpl; rewrite Hdd; destruct b; reflexivity);
+		(destruct n as [|tn bn]; [|destruct bn]);
+		try apply I; simpl.
+	+	eapply lift_map_conseq, open_borrow_dt_true, Hsdd; trivial.
+	+	apply HR, Hsdd.
+	+	eapply lift_map_conseq, open_borrow_dt_true, Hsdd; trivial.
+	+	unfold dec_zip; simpl.
+		rewrite Hdd; reflexivity.
+	+	eapply lift_map_conseq, open_aux_dt_true, Hsdd; trivial.
+	+	apply HR, Hsdd.
+	}
 Qed.
 
 Lemma open_aux_None : forall (l : RAL) n dbn1 dbn2 dl,
@@ -484,20 +610,179 @@ Proof.
 		eapply open_aux_None, H.
 Qed.
 
-Lemma open_inc : forall (l : RAL) n,
-		BinNat.is_canonical n ->
-		open l (BinNat.inc n) = option_bind (open l n) dec_zip.
+Lemma open_eq_borrow_None : forall (l : RAL) n dn1 dn2 dl,
+		open_eq l n dn1 dl = None -> open_borrow l n dn2 dl = None.
 Proof.
-	intros l n Hn.
+	intro l.
+	{	induction l as [|tl HR bl]; [|destruct bl as [t|]]; intros n dn1 dn2 dl H;
+		(destruct n as [|tn bn]; [|destruct bn]);
+		simpl in *;	try discriminate || reflexivity.
+	+	pose proof (Hnone := proj1 (open_aux_None tl Ob (1 :: dn1) (1 :: dn2) (Zero :: dl))).
+		destruct open_borrow; [discriminate|rewrite Hnone; reflexivity].
+	+	eapply HR, H.
+	+	pose proof (Hnone := proj1 (open_aux_None tl tn (0 :: dn1) (0 :: dn2) (Zero :: dl))).
+		destruct open_borrow; [discriminate|rewrite Hnone; reflexivity].
+	+	pose proof (Hnone :=
+			proj2 (open_aux_None tl tn (0 :: dn1) (0 :: dn2) (One _ t :: dl))).
+		destruct open_aux; [discriminate|rewrite Hnone; reflexivity].
+	+	eapply HR, H.
+	}
+Qed.
+Lemma open_aux_eq_None : forall (l : RAL) n dn1 dn2 dl,
+	  is_positive n ->
+	  open_aux l n dn1 dl = None -> open_eq l n dn2 dl = None.
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; [|destruct bl as [t|]]; intros n dn1 dn2 dl Hn H;
+		(destruct n as [|tn bn]; [|destruct bn]);
+		simpl in *;	try discriminate || reflexivity.
+	+	inversion_clear Hn.
+	+	inversion_clear Hn.
+	+	inversion_clear Hn as [| |? Htn].
+		eapply HR, H; assumption.
+	+	eapply open_aux_None in H.
+		rewrite H; reflexivity.
+	+	inversion_clear Hn.
+	+	destruct tn; eapply open_aux_None in H; rewrite H; reflexivity.
+	+	destruct tn; [discriminate|].
+		inversion_clear Hn as [| |? Htn].
+		eapply HR, H; assumption.
+	}
+Qed.
+Lemma open_borrow_eq_inc_None : forall (l : RAL) n dn1 dn2 dl,
+		BinNat.is_canonical n ->
+		open_borrow l n dn1 dl = None -> open_eq l (BinNat.inc n) dn2 dl = None.
+	intro l.
+	{	induction l as [|tl HR bl]; [|destruct bl as [t|]]; intros n dn1 dn2 dl Hn H;
+		(destruct n as [|tn bn]; [|destruct bn; apply BinNat.is_canonical_tl in Hn as Htn]);
+		simpl in *;	try discriminate || reflexivity.
+	+	eapply open_aux_None in H.
+		rewrite H; reflexivity.
+	+	eapply open_aux_None in H.
+		rewrite H; reflexivity.
+	+	eapply HR, H; assumption.
+	+	inversion_clear Hn as [? Hp|]; inversion_clear Hp as [| |? Htp].
+		eapply open_aux_eq_None, H; assumption.
+	+	rewrite open_aux_borrow_inc; [|assumption].
+		eapply open_aux_None in H.
+		rewrite H; reflexivity.
+	}
+Qed.
+	  
+Lemma open_eq_inc_None : forall (l : RAL) n dn dl,
+		BinNat.is_canonical n ->
+		open_eq l n dn dl = None -> open_eq l (BinNat.inc n) dn dl = None.
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; [|destruct bl as [t|]]; intros n dn dl Hn H;
+		(destruct n as [|tn bn]; [|destruct bn; apply BinNat.is_canonical_tl in Hn as Htn]);
+		simpl in *;	try discriminate || reflexivity.
+	+	pose proof (Hnone := proj1 (open_aux_None tl Ob (1 :: dn) (0 :: dn) (Zero :: dl))).
+		destruct open_borrow; [discriminate|rewrite Hnone; reflexivity].
+	+	pose proof (Hnone := open_eq_borrow_None tl tn (1 :: dn) (0 :: dn) (Zero :: dl)).
+		destruct open_eq; [discriminate|rewrite Hnone; reflexivity].
+	+	assert (Hnone : open_borrow tl tn (0 :: dn) (Zero :: dl) = None)
+			by (destruct open_borrow; [discriminate|reflexivity]).
+		eapply open_borrow_eq_inc_None, Hnone; assumption.
+	+	assert (Hnone : open_aux tl tn (0 :: dn) (One _ t :: dl) = None)
+		  by (destruct open_aux; [discriminate|reflexivity]).
+		inversion_clear Hn as [? Hp|]; inversion_clear Hp as [| |? Htp].
+		eapply open_aux_eq_None, Hnone; assumption.
+	+	rewrite open_aux_borrow_inc; [|assumption].
+		pose proof (Hnone := open_eq_borrow_None tl tn (1 :: dn) (0 :: dn) (One _ t :: dl)).
+		destruct open_eq; [discriminate|rewrite Hnone; reflexivity].
+	}
+Qed.
+
+
+Lemma open_eq_borrow_Some_None : forall (l : RAL) n dn1 dn2 dl,
+		BinNat.is_canonical n ->
+		open_eq l n dn1 dl = Some None -> open_borrow l n dn2 dl = None.
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; [|destruct bl as [t|]]; intros n dn1 dn2 dl Hn H;
+		(destruct n as [|tn bn]; [|destruct bn; apply BinNat.is_canonical_tl in Hn as Htn]);
+		simpl in *;	try discriminate || reflexivity.
+	+	assert (Hnone : open_borrow tl Ob (1 :: dn1) (Zero :: dl) = None)
+			by (destruct open_borrow; [discriminate|reflexivity]).
+		eapply open_aux_None, Hnone.
+	+	eapply HR, H; assumption.
+	+	assert (Hnone : open_borrow tl tn (0 :: dn1) (Zero :: dl) = None)
+			by (destruct open_borrow; [discriminate|reflexivity]).
+		eapply open_aux_None, Hnone.
+	+	assert (Hnone : open_aux tl tn (0 :: dn1) (One _ t :: dl) = None)
+			by (destruct open_aux; [discriminate|reflexivity]).
+		eapply open_aux_None, Hnone.
+	+	eapply HR, H; assumption.
+	}
+Qed.
+Lemma open_eq_Some_None_inc : forall (l : RAL) n dn dl,
+		BinNat.is_canonical n ->
+		open_eq l n dn dl = Some None -> open_eq l (BinNat.inc n) dn dl = None.
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; [|destruct bl as [t|]]; intros n dn dl Hn H;
+		(destruct n as [|tn bn]; [|destruct bn; apply BinNat.is_canonical_tl in Hn as Htn]);
+		simpl in *;	try discriminate || reflexivity.
+	+	assert (Hnone : open_borrow tl Ob (1 :: dn) (Zero :: dl) = None)
+			by (destruct open_borrow; [discriminate|reflexivity]).
+		eapply open_aux_None in Hnone.
+		rewrite Hnone; reflexivity.
+	+	eapply open_eq_borrow_Some_None in H; [|assumption].
+		rewrite H; reflexivity.
+	+	assert (Hnone : open_borrow tl tn (0 :: dn) (Zero :: dl) = None)
+			by (destruct open_borrow; [discriminate|reflexivity]).
+		eapply open_borrow_eq_inc_None, Hnone; assumption.
+	+	assert (Hnone : open_aux tl tn (0 :: dn) (One _ t :: dl) = None)
+			by (destruct open_aux; [discriminate|reflexivity]).
+		inversion_clear Hn as [? Hp|]; inversion_clear Hp as [| |? Htp].
+		eapply open_aux_eq_None, Hnone; assumption.
+	+	rewrite open_aux_borrow_inc; [|assumption].
+		erewrite open_eq_borrow_Some_None; [reflexivity|assumption|apply H].
+	}
+Qed.
+
+
+Lemma open_inc : forall (l : RAL) n,
+		is_canonical l ->
+		BinNat.is_canonical n ->
+		open l (BinNat.inc n) = option_bind (open l n) (fun o => option_bind o dec_zip).
+Proof.
+	intros l n Hl Hn.
 	unfold open.
-	pose proof (Hnone := open_borrow_inc_None l n [] [] [] Hn).
-	pose proof (Hsome := open_borrow_inc l n [] [] [] Hn eq_refl).
-	{	destruct open_borrow as [z|]; simpl in *.
+	pose proof (Hnone := open_eq_inc_None l n [] [] Hn).
+	pose proof (Hsomenone := open_eq_Some_None_inc l n [] [] Hn).
+	pose proof (Hsome := open_eq_inc l n [] [] _ Hl Hn eq_refl).
+	{	destruct open_eq as [z|];  [destruct z as [z|]|]; simpl in *.
 	+	assumption.
+	+	apply Hsomenone; reflexivity.
 	+	apply Hnone; reflexivity.
 	}
 Qed.
 
+
+Lemma open_eq_Some_None : forall (l : RAL) n dn dl,
+		open_eq l n dn dl = Some None -> to_bin l = n.
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; [|destruct bl]; intros n dn dl H;
+		(destruct n as [|tn bn]; [|destruct bn]); simpl in *;
+		try reflexivity || discriminate.
+	+	destruct open_borrow; discriminate.
+	+	erewrite to_bin_snoc, HR; [reflexivity|apply H].
+	+	destruct open_borrow; discriminate.
+	+	destruct open_aux; discriminate.
+	+	erewrite to_bin_snoc, HR; [reflexivity|apply H].
+	}
+Qed.
+
+Lemma open_Some_None : forall (l : RAL) n,
+	  open l n = Some None -> to_bin l = n.
+Proof.
+	intros l n H.
+	apply open_eq_Some_None in H.
+	assumption.
+Qed.
 End open.
 
 Section drop.
@@ -666,10 +951,12 @@ Proof.
 	intros l Hl.
 	unfold drop.
 	pose proof (Hoz := open_zero l).
+	pose proof (Hosn := open_Some_None l Ob).
 	pose proof (Hv := open_valid l Ob (wf_valid _ Hl)).
 	pose proof (Hz := open_zipper l Ob).
 
 	destruct open as [z|]; [|apply I]; simpl.
+	destruct z as [z|]; [|destruct l; [|discriminate Hosn]; reflexivity].
 	destruct z as [tl t dl idx], Hv as [_ _ Ht Hlen]; simpl in *.
 	destruct Hoz as [Hodl Hoidx].
 
