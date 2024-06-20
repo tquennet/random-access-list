@@ -499,12 +499,6 @@ Theorem cons_inc : forall (l : t) (a : A),
 	to_bin (cons a l) = BinNat.inc (to_bin l).
 Proof. intros; eauto using cons_tree_inc. Qed.
 
-Theorem ral_ind : forall (P: t -> Prop),
-    P Ob ->
-    (forall a l, is_well_formed l -> P l -> P (cons a l)) ->
-    forall l, is_well_formed l -> P l.
-Admitted.
-
 End cons.
 
 (** [uncons], [hd], [tl] *)
@@ -546,6 +540,27 @@ Proof.
 	intros l Hl.
 	apply uncons_valid_k.
 	assumption.
+Qed.
+
+Lemma uncons_positive : forall l k,
+		is_valid_k k l ->
+		BinNat.is_positive (to_bin l) ->
+		exists a r, uncons l = Some (a, r).
+Proof.
+	intros l.
+	{	induction l as [|tl HR bl]; intros k Hv Hp;
+			[|destruct bl; rewrite to_bin_snoc in Hp];
+			inversion_clear Hp as [|? Htp |? Htp]; simpl.
+	+	destruct Hv as [Hv _].
+		apply uncons_valid_k in Hv as Hrv.
+		destruct (HR _ Hv Htp) as [t H], H as [r H].
+		rewrite H in *; simpl in *.
+		destruct Hrv as [Hrv _].
+		inversion_clear Hrv.
+		eexists; eexists; reflexivity.
+	+	eexists; eexists; reflexivity.
+	+	eexists; eexists; reflexivity.
+	}
 Qed.
 
 Theorem uncons_dec : forall l, is_valid l ->

@@ -380,6 +380,14 @@ Qed.
 
 (** normalize *)
 
+Lemma inc_inj : forall n m, is_canonical n -> is_canonical m -> inc n = inc m -> n = m.
+Proof.
+	intros n m Hn Hm H.
+	apply (f_equal to_nat) in H; rewrite !inc_S in H.
+	apply Nat.succ_inj in H.
+	apply to_nat_inj; assumption.
+Qed.
+
 Definition ssnoc n b :=
 	match n, b with
 	| Ob, 0 => Ob

@@ -8,7 +8,7 @@ Section Ral.
 Context {A : Type}.
 Notation RAL := (@Ral.t A).
 
-Lemma cons_uncons : forall (l : RAL) clbt, is_canonical l ->
+Lemma uncons_cons : forall (l : RAL) clbt, is_canonical l ->
 		uncons (Ral.cons_tree clbt l) = Some (clbt, l).
 Proof.
 	intros l clbt Hc.
@@ -33,7 +33,21 @@ Lemma tl_cons : forall (l : RAL) (a : A),
 Proof.
 	intros l a H.
 	unfold Ral.tl, Ral.cons.
-	rewrite cons_uncons; [reflexivity|assumption].
+	rewrite uncons_cons; [reflexivity|assumption].
+Qed.
+
+Lemma cons_uncons : forall l : RAL, option_lift (fun '(a, r) => Ral.cons_tree a r = l) (uncons l).
+Proof.
+	intro l.
+	{	induction l as [|tl HR bl]; [|destruct bl]; simpl.
+	+	apply I.
+	+	eapply lift_bind_conseq, HR; simpl.
+		intros x Hx.
+		destruct x as [a r], a; [apply I|]; simpl.
+		rewrite Hx.
+		reflexivity.
+	+	destruct tl; reflexivity.
+	}
 Qed.
 
 Lemma hd_cons : forall (l : RAL) (a : A),
@@ -42,8 +56,38 @@ Lemma hd_cons : forall (l : RAL) (a : A),
 Proof.
 	intros l a Hl.
 	unfold Ral.hd, Ral.cons.
-	rewrite cons_uncons; [|assumption]; simpl.
+	rewrite uncons_cons; [|assumption]; simpl.
 	reflexivity.
+Qed.
+Theorem ral_ind : forall (P: RAL -> Prop),
+    P Ob ->
+    (forall a l, is_well_formed l -> P l -> P (Ral.cons a l)) ->
+    forall l, is_well_formed l -> P l.
+Proof.	
+	intros P H0 Hc l Hl.
+	destruct Hl as [Hvl Hsl].
+	unfold is_canonical in Hsl.
+	remember (to_bin l) as s eqn:Hs.
+	revert l Hvl Hs.
+	{	induction Hsl as [|s Hsl HR] using BinNat.canonical_induction; intros l Hvl Hs.
+	+	destruct l as [|bl tl]; [|discriminate].
+		apply H0.
+	+	apply BinNat.is_positive_inc in Hsl as Hl.
+		rewrite Hs in Hl.
+		pose proof (Hin := uncons_positive _ _ Hvl Hl).
+		destruct Hin as [a Hin], Hin as [r Hin].
+		pose proof (Hcu := cons_uncons l).
+		pose proof (Huv := uncons_valid l Hvl).
+		pose proof (Huc := uncons_canonical l (mk_wf _ Hvl (is_pos _ Hl))).
+		rewrite Hin in Hcu, Huv, Huc; simpl in Hcu, Huv, Huc.
+		destruct Huv as [Ha Hr].
+		rewrite <- Hcu in Hs |- *.
+		rewrite cons_tree_inc in Hs.
+		apply inc_inj in Hs; [|assumption..].
+		inversion_clear Ha.
+		pose proof (r_wf := mk_wf _ Hr Huc).
+		apply Hc, HR, Hs; assumption.
+	}
 Qed.
 (*
 
