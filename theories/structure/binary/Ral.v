@@ -876,7 +876,7 @@ Section lookup.
 
 Definition lookup l n :=
   match open l n with
-  | Some {| z_tree := t; z_idx := idx |} =>
+  | Some (Some {| z_tree := t; z_idx := idx |}) =>
       CLBT.lookup t idx
   | _ => None
   end.
@@ -887,8 +887,9 @@ End lookup.
 Section update.
 
 Definition update l n a :=
-	option_bind (open l n) (fun z => option_bind (CLBT.update z.(z_tree) z.(z_idx) a)
-		(fun t => Some (plug (snoc z.(z_suffix) (One t)) z.(z_prefix)))).
+	option_bind (open l n) (fun z => option_bind z
+		(fun z => option_bind (CLBT.update z.(z_tree) z.(z_idx) a)
+		(fun t => Some (plug (snoc z.(z_suffix) (One t)) z.(z_prefix))))).
 
 Lemma is_valid_update : forall l n a, is_valid l -> option_lift is_valid (update l n a).
 Proof.
@@ -897,6 +898,7 @@ Proof.
 	pose proof (Hv := open_valid l n Hl).
 	eapply lift_bind_conseq, Hv.
 	intros z Hz.
+	destruct z as [z|]; [|apply I].
 	destruct z as [tl dl t idx], Hz as [Htl Hdl Ht Hlen]; simpl in *.
 	eapply lift_bind_conseq, CLBT.update_valid; [|assumption]; simpl.
 	intros t' Ht'.
@@ -910,6 +912,8 @@ Proof.
 	unfold update.
 	pose proof (H := open_zipper l n).
 	eapply lift_bind_conseq, H.
+	intros x Hx.
+	eapply lift_bind_conseq, Hx.
 	intros z Hz; unfold is_zipper in Hz.
 	apply lift_bind; intro t; simpl; cbn [plug gplug] in Hz.
 	apply (f_equal to_bin) in Hz.
@@ -966,8 +970,9 @@ Proof.
 	}
 Qed.
 Definition drop l n :=
-	option_bind (open l n) (fun z => option_bind (scatter z.(z_tree) z.(z_idx))
-		(fun '(a, p) => Some (cons a (splug z.(z_suffix) (Zero :: p))))).
+	option_map (fun z => option_default Ob (option_bind z (fun z => option_map 
+		(fun '(a, p) => cons a (splug z.(z_suffix) (Zero :: p)))
+		(scatter z.(z_tree) z.(z_idx))))) (open l n).
 
 Lemma drop_sub : forall l n, is_valid l ->
 		option_map to_bin (drop l n) = (to_bin l) - n.
@@ -977,7 +982,8 @@ Proof.
 	pose proof (H := open_gt l n).
 	unfold drop, BinNat.sub.
 	rewrite <- H.
-	destruct open as [z|]; [|reflexivity]; simpl in *.
+	destruct open as [z|]; [|reflexivity].
+	destruct z as [z|]; [|reflexivity]; simpl in *.
 	destruct z as [tl t dl idx], Hv as [_ _ Ht _]; simpl in *.
 	pose proof (Hs := scatter_to_bin t idx Ht).
 	destruct scatter as [s|]; [destruct s as [sa sdl]|discriminate]; simpl in *.
@@ -1022,9 +1028,10 @@ Proof.
 	unfold drop.
 	eapply lift_bind_conseq, open_valid; [|assumption].
 	intros x Hx.
+	destruct x as [x|]; [|apply I].
 	destruct x as [tl t dl idx], Hx as [Htl _ Ht _]; simpl in *.
-	eapply lift_bind_conseq, scatter_valid; [|assumption]; simpl.
-	intros x Hx.
+	pose proof (Hx := scatter_valid t idx Ht).
+	destruct scatter as [x|]; [|apply I]; simpl.
 	destruct x as [a p]; simpl in Hx.
 	apply (valid_DCons _ Zero) in Hx; [|apply I].
 	apply cons_valid, (splug_valid _ _ (S (List.length idx))); assumption.
