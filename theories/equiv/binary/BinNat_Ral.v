@@ -36,31 +36,6 @@ Proof.
 	}
 Qed.
 
-Theorem strip_canonical : forall (l : @RAL.t A),
-	RAL.is_canonical l -> BinNat.is_canonical (RAL.strip l).
-Proof.
-	intros l H.
-	{	induction H.
-	+	apply BinNat.canonical_0.
-	+	rewrite RAL.cons_inc_strip.
-		apply BinNat.canonical_inc.
-		assumption.
-	}
-Qed.
-
-Theorem tail_dec : forall (l : @RAL.t A),
-	RAL.is_canonical l -> RAL.strip (RAL.tail l) = BinNat.dec (RAL.strip l).
-Proof.
-	intros l Hl.
-	{	destruct Hl.
-	+	reflexivity.
-	+	rewrite RAL.cons_tail, RAL.cons_inc_strip; [|assumption].
-		apply strip_canonical in Hl.
-		rewrite BinNat.inc_dec; [|assumption].
-		reflexivity.
-	}
-Qed.
-
 Definition open_forget :=
 	option_map (fun zip : (@RAL.zipper A) => BinNat.mkZip (RAL.strip zip.(RAL.zip_tl))
 						(RAL.strip zip.(RAL.zip_dl)) (zip.(RAL.zip_nb))).
@@ -110,8 +85,6 @@ Theorem update_strip : forall l n (a : A),
 Proof.
 	intros l n a Hl Hn.
 	unfold RAL.update.
-	apply BinNat.is_canonical_struct_equiv in Hn.
-	apply strip_canonical in Hl as Hsl.
 	pose proof (Hoc := open_gtb l n).
 	pose proof (Hcomp := BinNat.gtb_decomp_is_decomp (RAL.strip l) n).
 	{	destruct RAL.open as [zip|], BinNat.gtb_decomp as [decomp|];
@@ -131,12 +104,7 @@ Lemma update_canonical : forall l n (a : A),
 		RAL.is_canonical (RAL.update l n a).
 Proof.
 	intros l n a Hl Hn.
-	apply RAL.canonical_valid in Hl as Hvl.
-	apply strip_canonical in Hl as Hsl.
-	apply BinNat.is_canonical_struct_equiv in Hsl.
-	apply RAL.is_canonical_struct_equiv.
-	split; [apply RAL.update_valid; assumption|].
-	unfold RAL.is_precanonical.
+	unfold RAL.is_canonical.
 	rewrite update_strip; assumption.
 Qed.
 
@@ -146,9 +114,6 @@ Theorem lookup_none : forall (l : @RAL.t A) n,
 Proof.
 	intros l n Hl Hn H.
 	unfold RAL.lookup in *.
-	apply BinNat.is_canonical_struct_equiv in Hn.
-	apply RAL.is_canonical_struct_equiv in Hl.
-	destruct Hl as [_ Hl].
 	pose proof (Hgs := BinNat.gtb_decomp_equiv (RAL.strip l) n Hl Hn).
 	pose proof (Hco := open_gtb l n).
 	{	destruct RAL.open, (BinNat.gtb_decomp (RAL.strip l) n).
@@ -166,9 +131,6 @@ Theorem update_id : forall l n (a : A),
 Proof.
 	intros l n a Hl Hn H.
 	unfold RAL.update in *.
-	apply BinNat.is_canonical_struct_equiv in Hn.
-	apply RAL.is_canonical_struct_equiv in Hl.
-	destruct Hl as [_ Hl].
 	pose proof (Hgs := BinNat.gtb_decomp_equiv (RAL.strip l) n Hl Hn).
 	pose proof (Hco := open_gtb l n).
 	{	destruct RAL.open, (BinNat.gtb_decomp (RAL.strip l) n).
@@ -181,20 +143,17 @@ Proof.
 Qed.
 
 Theorem lookup_update_eq : forall (l : @RAL.t A) n a,
-		RAL.is_canonical l -> BinNat.is_canonical n ->
+		RAL.is_well_formed l -> BinNat.is_canonical n ->
 		(RAL.strip l) >? n = true ->
 		RAL.lookup (RAL.update l n a) n = Some a.
 Proof.
 	intros l n a Hl Hn H.
 
 	(* hypothèses utiles *)
+	destruct Hl as [Hvl Hl].
 	pose proof (Hlookup := open_gtb (RAL.update l n a) n).
 	rewrite update_strip in Hlookup; [|assumption..].
-	apply RAL.canonical_valid in Hl as Hvl.
 	pose proof (Hu := update_canonical _ _ a Hl Hn).
-	apply BinNat.is_canonical_struct_equiv in Hn.
-	apply RAL.is_canonical_struct_equiv in Hl, Hu.
-	destruct Hl as [_ Hl], Hu as [_ Hu].
 	pose proof (Hgs := BinNat.gtb_decomp_equiv (RAL.strip l) n Hl Hn).
 	rewrite H in Hgs.
 	pose proof (Hzlookup := RAL.open_zipper (RAL.update l n a) n).
@@ -232,12 +191,11 @@ Proof.
 Qed.
 
 Theorem lookup_update_neq : forall (l : @RAL.t A) n m a,
-		RAL.is_canonical l -> BinNat.is_canonical n -> BinNat.is_canonical m ->
+		RAL.is_well_formed l -> BinNat.is_canonical n -> BinNat.is_canonical m ->
 		n <> m ->	RAL.lookup (RAL.update l n a) m = RAL.lookup l m.
 Proof.
 	intros l n m a Hl Hn Hm H.
-	apply RAL.canonical_valid in Hl as Hvl.
-	apply strip_canonical in Hl as Hsl.
+	destruct Hl as [Hvl Hl].
 	pose proof (Hzupdate := RAL.open_zipper l n).
 	pose proof (Hzlookup1 := RAL.open_zipper (RAL.update l n a) m).
 	pose proof (Hzlookup2 := RAL.open_zipper l m).
@@ -263,7 +221,7 @@ Proof.
 	specialize (Hzlookup1 zipl1 eq_refl).
 	specialize (Hzlookup2 zipl2 eq_refl).
 	specialize (Hvlookup2 zipl2 eq_refl).
-	specialize (Hcgt decompn decompm Hsl Hn Hm eq_refl eq_refl).
+	specialize (Hcgt decompn decompm Hl Hn Hm eq_refl eq_refl).
 	destruct zip as [tl dl t nb], zipl1 as [tl1 dl1 t1 nb1], zipl2 as [tl2 dl2 t2 nb2],
 		decompn as [tn dn an], decompm as [tm dm am].
 	f_equal.
@@ -337,14 +295,9 @@ Lemma RAL_create_canonical : forall n (a : A),
 		RAL.is_canonical (RAL.create n a).
 Proof.
 	intros n a Hn.
-	apply RAL.is_canonical_struct_equiv.
-	apply BinNat.is_canonical_struct_equiv in Hn.
-	{	split.
-	+	apply RAL.create_valid.
-	+	unfold RAL.is_precanonical.
-		rewrite create_strip.
-		assumption.
-	}
+	unfold RAL.is_canonical.
+	rewrite create_strip.
+	assumption.
 Qed.
 
 End BinNatRal.
