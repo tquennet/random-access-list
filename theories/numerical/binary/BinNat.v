@@ -168,6 +168,13 @@ Qed.
 
 (** [to_nat] *)
 
+Fixpoint to_nat_rec n : nat :=
+        match n with
+        | Ob => O
+        | snoc t 0 => 2 * (to_nat_rec t)
+        | snoc t 1 => S (2 * to_nat_rec t)
+       end.
+
 Definition bit_to_nat (k: nat)(b: Bit): nat :=
   match b with
   | 0 => 0%nat
