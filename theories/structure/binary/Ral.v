@@ -25,7 +25,8 @@ random-access list and operations preserve validity and canonicity.
 
 ** Constructors:
 
-- [t] == the type of random-access lists
+- [ArrayBit] == the type of decorated binary digits
+- [ArrayList] = [t] == the type of random-access lists
 - [empty] == empty random-access list
 - [create n a] == random-access list consisting of [n] copies of [a]
 
@@ -33,57 +34,22 @@ random-access list and operations preserve validity and canonicity.
 
 - [card l] == compute the number of elements in the random-access list [l]
 - [cons a l] == concatenate [a] to [l]
+- [uncons a] = [hd a], [tl a] == split [l] into a head and a tail, if non-empty
 - [lookup l n] == retrieve the [n]-th element of [l]
 - [update l n a] == update the [n]-th element of [l] with [a]
+- [drop l n] == remove the [n] first elements of [l]
+
+** Iterators:
+
+- [foldMap m f n] == iterate over all elements of [n], mapping them with [f]
+                     to monoid [m]
+- [ral_ind] == induction principle of lists
 
 ** Conversions:
 
 - [to_bin l] == convert [l] to its underlying binary number
 
 *)
-(********************************************************************************)
-
-
-(********************************************************************************)
-(*	RAL (A : Type) == the type of random access list of items of type A.		*)
-(*		 is_valid  == a predicate identifying valid RAL,						*)
-(*					 all operations are defined only over valid RAL				*)
-(*	  is_canonical == a predicate identifying canonical RAL						*)
-(*		empty == the empty RAL													*)
-(*			+: canonical_Empty : is_canonical empty								*)
-(*		cons a l  == the RAL of element a followed by l							*)
-(*			+: canonical_Cons : forall a l,										*)
-(*					 			is_canonical l -> is_canonical (cons a l) 		*)
-(*	**	Unary operator:															*)
-(*		strip l == underlying BinNat structure									*)
-(*		size l == element count of l											*)
-(*		trim l == a canonical equivalent of l									*)
-(*		head l == Some (first element of l) or None								*)
-(*		tail l == empty if l is emptyr if l is cons a r							*)
-(*	**	generator:																*)
-(*		create n a == a list consisting of n copy of a							*)
-(*	**	Indexed operations:														*)
-(*		drop l n  == l without its first n elements								*)
-(*		lookup l n == an option containing the nth element of l,				*)
-(*						or None if size l < n									*)
-(*		update l n a == if size l < n, l with nth element replaced by a			*)
-(*	** Lemmes:																	*)
-(*			size_strip_valid :	forall l, is_valid l ->							*)
-(*								to_nat (strip l) = size l						*)
-(*			strip_canonical :	forall l, is_canonical l -> 					*)
-(*								BinNat.is_canonical (strip l) 					*)
-(*																				*)
-(*			cons_valid : forall a l, is_valid l -> is_valid (cons a l)			*)
-(*			tail_valid : forall a l, is_valid l -> is_valid (tail a l)			*)
-(*			drop_valid : forall l n, is_valid l -> is_valid (drop l n)			*)
-(*			update_valid : forall l n a, is_valid l -> is_valid (update l n a)	*)
-(*			create_valid : forall n a, is_valid (create n a)					*)
-(*																				*)
-(*			trim_canonical : forall l, is_valid l -> is_canonical (trim l)		*)
-(*			tail_canonical : forall l, is_canonical l -> is_canonical (tail l)	*)
-(*			drop_canonical : forall l n, is_valid l -> is_canonical (drop l n)	*)
-(*																				*)
-(*			cons_tail : forall a l, is_canonical l -> tail (cons a l) = l		*)
 (********************************************************************************)
 
 Section RAL.
