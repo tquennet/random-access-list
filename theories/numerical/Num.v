@@ -1,5 +1,28 @@
 Require Import utils.Utils Lists.List.
 
+(********************************************************************************)
+(** * Generic representation of dense numerical systems
+
+** Constructor:
+
+- [Num A] == the type of dense numerical systems of base [A]
+
+** Iterators:
+
+- [mapi f i n] == applies [f] across the numerical representation [n]
+                  starting from a coefficient weighted [i]
+- [foldM m n] == fold the elements of the monoid [m] over the
+                 numerical representation [n]
+- [foldMap m f i n] == combination of [mapi] and [foldM]
+
+** Predicates:
+
+- [Num_lift P i n] == asserts that [P] holds for every digit of the
+                      numerical representation [n] starting from a
+                      coefficient weighted [i]
+*)
+(********************************************************************************)
+
 Inductive Num (A : Type) :=
 | Ob : Num A
 | snoc (n : Num A)(a : A) : Num A.
