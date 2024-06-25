@@ -19,26 +19,35 @@ Notations are defined in [bin_nat_scope].
 ** Predicates:
 
 - [is_canonical n] <=> there is no trailing zeros
+- [is_positive n] <=> strictly-positive number
 
 All the constructors in the file produce canonical binary numbers and
 operations preserve canonicity.
 
 ** Constructors:
 
+- [Bit] == the type of binary digits
 - [t] == the type of binary numbers, with lowest-significant-bit first
 - [dt] == the type of binary numbers with most-significant-bit first,
-  understood as the one-hole context of the type [t].
+          understood as the one-hole context of the type [t].
 - [zero] == binary number representing 0
+
+** Iterators:
+
+- [canonical_induction] == Peano induction principle
 
 ** Operations:
 
-- [inc n] == the successor of [n] [dec n] == the predecessor of [n]
+- [inc n] == the successor of [n]
+- [dec n] == the predecessor of [n]
+- [gt n m] == [n] is (strictly) greater than [m], with a precise
+              decomposition of [n] as the sum of [m] and a remainder
 - [gtb n m], [n >? m] <=> [n] is (strictly) greater than [m]
 - [sub n m], [n - m] == the difference between [n] and [m]
 
 ** Conversions:
 
-- [to_nat n] == convert [n] to Coq Peano natural number
+- [bit_to_nat n] == convert [n] to Coq Peano natural number
 - [normalize bs] == turn any element of [t] into an equivalent,
   canonical binary number
 
