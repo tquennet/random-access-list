@@ -1,9 +1,34 @@
 Require Import Lists.List Arith.
 Import ListNotations.
 
+Section Monoid.
+
+Record Monoid (S : Type) : Type :=
+  { monoid_plus : S -> S -> S
+  ; monoid_unit : S
+  }.
+
+Definition Monoid_nat : Monoid nat :=
+  {| monoid_plus := Init.Nat.add ; monoid_unit := 0%nat |}.
+
+Definition Monoid_endol {A} : Monoid (A -> A) :=
+  {| monoid_plus := fun f g a => f (g a);
+     monoid_unit := fun a => a |}.
+Definition Monoid_endor {A} : Monoid (A -> A) :=
+  {| monoid_plus := fun f g a => g (f a);
+     monoid_unit := fun a => a |}.
+
+Definition Monoid_Prop : Monoid Prop :=
+  {| monoid_plus := and ; monoid_unit := True |}.
+
+End Monoid.
+
+Arguments monoid_unit {S} m.
+Arguments monoid_plus {S} m m2.
+
 Section Option.
 
-Context {A : Type} (P : A -> Prop).
+Context {A : Type}.
 
 Definition is_some (o : option A) :=
 	match o with
@@ -11,10 +36,56 @@ Definition is_some (o : option A) :=
 	| Some _ => true
 	end.
 
-Variant option_predicate : option A -> Prop :=
-	| OP_None : option_predicate None
-	| OP_Some : forall a, P a -> option_predicate (Some a).
+Definition option_lift {A} (P : A -> Prop)(a: option A): Prop :=
+  match a with
+  | None => True
+  | Some a => P a
+  end.
 
+Definition option_bind {A B} (o : option A) (f : A -> option B) :=
+	match o with
+	| Some a => f a
+	| None => None
+	end.
+
+Lemma lift_map {X Y}: forall (P : Y -> Prop)(r: option X)(f: X -> Y),
+    option_lift P (option_map f r)
+    = option_lift (fun t => P (f t)) r.
+Proof. intros *; destruct r; auto. Qed.
+
+Lemma lift_conseq {X}: forall (P Q : X -> Prop)(r: option X),
+    (forall x, P x -> Q x) ->
+    option_lift P r -> option_lift Q r.
+Proof. intros; destruct r; simpl; auto. Qed.
+
+Lemma lift_map_conseq {X Y} : forall (P : X -> Prop) (Q : Y -> Prop) (r : option X) (f : X -> Y),
+		(forall x, P x -> Q (f x)) ->
+		option_lift P r -> option_lift Q (option_map f r).  
+Proof.
+	intros P Q r f Hf H.
+	rewrite lift_map.
+	eapply lift_conseq; [apply Hf|apply H].
+Qed.
+Lemma lift_bind_conseq {X Y} : forall (P : X -> Prop) (Q : Y -> Prop) (r : option X) (f : X -> option Y),
+		(forall x, P x -> option_lift Q (f x)) ->
+		option_lift P r -> option_lift Q (option_bind r f).  
+Proof.
+	intros P Q r f Hf H.
+	{	destruct r; simpl.
+	+	apply Hf.
+		assumption.
+	+	apply I.
+	}
+Qed.
+
+Lemma lift_bind {X Y} : forall (Q : Y -> Prop) (r : option X) (f : X -> option Y),
+		(forall x, option_lift Q (f x)) -> option_lift Q (option_bind r f).
+Proof.
+	intros Q r f Hf.
+	apply (lift_bind_conseq (fun _ => True)); [|destruct r; apply I].
+	intros x _.
+	apply Hf.
+Qed.
 Definition option_default d (o : option A) :=
 	match o with
 	| None => d
@@ -23,60 +94,15 @@ Definition option_default d (o : option A) :=
 
 End Option.
 
-Section Options.
+Lemma bind_fail {X Y}: forall (m: option X),
+    option_bind (B := Y) m (fun _ => None) = None.
+Proof. intros; destruct m; auto. Qed.
 
-Context {A B C : Type} (P : B -> Prop) (f g : A -> B) (h : B -> C) (i : A -> A) (j : A -> option B).
-
-Definition option_join o :=
-	match o with
-	| Some a => j a
-	| None => None
-	end.
-
-Lemma option_map_map : forall o,
-		option_map h (option_map f o) = option_map (fun x => h (f x)) o.
-Proof.
-	intro o.
-	destruct o; reflexivity.
-Qed.
-
-Lemma option_default_map_inv : forall d (o : option A),
-	(o = None -> P d) ->
-	(forall x, o = Some x -> P (f x)) ->
-	P (option_default d (option_map f o)).
-Proof.
-	intros d o Hd Hf.
-	{	destruct o; simpl.
-	+	apply Hf.
-		reflexivity.
-	+	apply Hd.
-		reflexivity.
-	}
-Qed.
-
-Lemma option_map_inj : forall o1 o2,
-		(forall x y, (f x = f y -> x = y)) ->
-		option_map f o1 = option_map f o2 ->
-		o1 = o2.
-Proof.
-	intros o1 o2 Hinj H.
-	destruct o1, o2; [|discriminate..|reflexivity].
-	inversion H.
-	apply Hinj in H1.
-	rewrite H1.
-	reflexivity.
-Qed.
-Lemma option_map_inv : forall o,
-		(forall x, (i x = x)) ->
-		option_map i o = o.
-Proof.
-	intros o Hrew.
-	destruct o; [|reflexivity].
-	simpl.
-	rewrite Hrew.
-	reflexivity.
-Qed.
-End Options.
+Lemma bind_map {X Y Z}: forall (f: X -> Y)(r: option X)(k: Y -> option Z),
+    option_bind
+      (option_map f r) k
+    = option_bind r (fun t => k (f t)).
+Proof. intros *; destruct r; auto. Qed.
 
 Section List.
 
